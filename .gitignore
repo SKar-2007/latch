@@ -1,0 +1,16 @@
+# Foundry build artifacts
+cache/
+out/
+broadcast/
+
+# Dependencies. Pinned via foundry.toml; `forge install` restores them.
+lib/
+
+# Secrets. RPC endpoints and any deployer key live here and must never be committed.
+.env
+.env.*
+!.env.example
+
+# Local coverage and gas reports
+lcov.info
+*.gas-report
