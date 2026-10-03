@@ -63,7 +63,7 @@ Event topic: `0xb5282692b8c578af7fb880895d599035496b5e64d1f14bf428a1ed3bc406f662
 |---|---|---|---|
 | **V-14** | Does the account honour `EXECTYPE_TRY`? | **`VERIFIED YES`** | All four Nexus builds on Base Sepolia contain the `TryExecuteUnsuccessful` and `TryDelegateCallUnsuccessful` topics **and** the `executeFromExecutor` selector. `FailSafeExecutor`'s mechanism is present |
 | **V-16** | Which singleton is the ERC-8211 Nexus? | **`VERIFIED`** | `0x0000000020fe2F30453074aD916eDeB653eC7E9D`, `accountId()` = **`biconomy.nexus.1.3.1`** |
-| **V-04** | Obtaining a Nexus account for the demo | **`PARTIAL`** | EIP-7702 delegation to the verified account works and is not sufficient. The account rejects composable calls with `InvalidModule(address(0))`. See below |
+| **V-04** | Obtaining a Nexus account for the demo | **`PARTIAL, 1.3.3 ONLY** | Factory and bootstrap exist on Base Sepolia; the address is predictable and the proxy deploys, but initialization reverts and the deployed bootstrap's selectors differ from its published source. See below |
 | **V-18** | Does the account need the composability module installed? | **`VERIFIED NO`** | The 1.3.1 account contains the `executeComposable` selector itself. It is the spec's native-inheritance shape |
 
 ### What the survey found
@@ -276,6 +276,75 @@ probe used a codeless address as its control and read the resulting *success* as
 fine". A call to an address with no code cannot fail. It measured nothing, and its name asserted the
 opposite of what it checked. `test_codelessCallSucceedsTriviallyAndMeansNothing` keeps the mistake
 visible.
+
+## V-04, how far the Nexus account actually got
+
+Continuing from the delegation work. Everything below was measured on a Base Sepolia fork by
+`test/fork/NexusAccountFactoryLive.t.sol`.
+
+**Confirmed, from source rather than from labels.**
+
+| Fact | How it was established |
+|---|---|
+| `0x0000b1C08f1418dA76B5E99c1Bf5718486cf8c53` is `NexusAccountFactory` | `createAccount(bytes,bytes32)` = `0xea6d13ac` and `computeAccountAddress(bytes,bytes32)` = `0xfafa2b42`, computed from `bcnmy/nexus`, both present in the deployed bytecode |
+| it deploys **Nexus 1.3.3**, not the 1.3.1 pinned elsewhere | `ACCOUNT_IMPLEMENTATION()` = `0x0000B1c01cB…a5B`, whose `accountId()` is `biconomy.nexus.1.3.3` |
+| the K1 validator `0x0000B1C079…BaD6` **is** that account's default validator | read from `getDefaultValidator()` on the implementation, not inferred |
+| the composability module is module type **2 and 3** (executor and fallback) | `isModuleType` answered on-chain for 1-7: true for 2 and 3 only |
+
+**The version discrepancy is real and unexplained.** V-04 pins `biconomy.nexus.1.3.1`; the only
+account factory on Base Sepolia deploys 1.3.3. Nothing on chain offers a 1.3.1 factory. Either the pin
+should move to 1.3.3 or LATCH deploys its own factory, and that is a decision, not an observation.
+
+**What works.** The bootstrap exists, the account address is predictable, and the proxy does deploy.
+`computeAccountAddress` agrees with the CREATE2 address the factory then uses.
+
+**What does not.** Initialization reverts, so `createAccount` reverts and the deployment rolls back.
+Three distinct blockers, each replacing the last:
+
+1. `DefaultValidatorAlreadyInstalled()` (`0xabc3af79`). `ModuleManager._installValidator` reverts when
+   `validator == _DEFAULT_VALIDATOR`, and K1 is the default. It cannot also be installed as a validator.
+2. `MissingFallbackHandler(0x0)` then `NexusInitializationFailed()` (`0x315927c5`).
+   `initNexusWithDefaultValidator` builds a zero `RegistryConfig` while the `withRegistry` modifier on
+   the validator install requires one.
+3. **The deployed bootstrap's dispatcher does not match its published source.** This is the load-bearing
+   one. `_initializeAccount` does not take a bare bootstrap call: it reads `initData` by hand as
+   `[bootstrap address][offset][length][calldata]`, and passing just the calldata makes it read the
+   selector as an address. With that fixed, the delegatecall lands on the right contract and *still*
+   falls through to `MissingFallbackHandler`, because
+   `initNexusWithDefaultValidatorAndOtherModulesNoRegistry` computes to `0x41bede03` and that selector
+   is not in the deployed dispatcher, while `initNexusWithSingleValidator` (`0x6d583e36`) resolves to a
+   real function. The deployed contract is an older build than the source I read.
+
+The selector set has to come from the deployed contract's verified ABI. Reading it off the repository
+is the same error as V-19 and V-23 one level up: a source that does not match the artifact, producing
+a false negative that looks like a pass. An earlier heuristic here made exactly that mistake -- it
+scraped every `PUSH4` constant from the first quarter of the bytecode and reported `0x41bede03` as
+present, which was a constant, not a dispatch entry.
+
+## V-27, V-24 was probably never about a codeless caller
+
+Found while reading `ComposableExecutionModule` rather than the account, and it reframes V-24.
+
+The module's own comment states the call path:
+
+```
+account.executeComposableCall => fallback() => this.executeComposableCall
+```
+
+The batch must be sent **to the account**, whose fallback routes the selector to the module with the
+calldata wrapped per ERC-2771 (`ExecLib.get2771CallData`). `executeComposableCall` on the module
+itself runs `_executeComposable(cExecutions, msg.sender, ...)`, so calling it directly makes
+`msg.sender` the EOA rather than the account -- the batch would then operate on the wrong account.
+
+That is very likely the true content of V-24, and it is not "the module refuses a codeless caller".
+`DemoBatch.t.sol`'s blocker test calls the module directly and observes "success but no allowance",
+which is exactly what a batch executing against the wrong account looks like. The composability module
+answers `isModuleType(3)` true, so it can be registered as the account's fallback handler for
+`0xdcb108bf` via `installModule(uint256,address,bytes)` with
+`params = selector ‖ CALLTYPE_SINGLE ‖ initData`.
+
+Not yet demonstrated end to end, because it needs an initialized account, which is V-04. Recorded as a
+lead with a source citation rather than a finding.
 
 ## V-25, Uniswap's Quoter cannot be reached from a view function
 

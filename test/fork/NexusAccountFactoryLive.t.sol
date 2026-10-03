@@ -55,7 +55,17 @@ contract NexusAccountFactoryLiveTest is Test {
     address constant SWAP_ROUTER = 0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4;
 
     address owner = 0x00a534733a858836683491EFCd8aCA9ddec34B09;
-    bytes32 salt = bytes32(uint256(1));
+    // A fresh salt per run. Nexus accounts are CREATE2: a salt reused with different init data does not
+    // redeploy, it silently returns the address it already used, and the account stays uninitialized.
+    // An earlier probe also consumed the K1 validator's one-shot `onInstall` through an `eth_call`,
+    // after which every subsequent call returned `ModuleAlreadyInitialized()`.
+    // Salted per block. A failed initialization still leaves the proxy deployed, and CREATE2 will not
+    // redeploy at the same salt -- it returns the existing address untouched. A fixed salt would make
+    // the second run silently test a half-built account.
+    bytes32 salt = keccak256(abi.encodePacked("latch-nexus", block.number));
+
+    /// @dev ERC-4337 EntryPoint v0.7, as Nexus exposes it.
+    address constant ENTRYPOINT = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
     bool private forkActive;
     address private account;
@@ -82,37 +92,85 @@ contract NexusAccountFactoryLiveTest is Test {
     /**
      * @dev `initNexusNoRegistry`, installing the composability module as an EXECUTOR and nothing else.
      *
-     *      The first attempt installed the K1 validator and reverted with
-     *      `DefaultValidatorAlreadyInstalled()` (`0xabc3af79`), because the K1 validator at
-     *      `0x0000B1C079…BaD6` *is* the Nexus 1.3.3 account's default validator -- read from
-     *      `getDefaultValidator()` on the implementation, not assumed. Installing it again is rejected
-     *      by `ModuleManager._installValidator`, which refuses `validator == _DEFAULT_VALIDATOR`.
-     *      So the validator list is empty and the module goes in as the executor.
-     *
-     *      Module type checked on-chain rather than assumed: the composability module answers
-     *      `isModuleType(2)` and `isModuleType(3)` true, false for 1 and 4-7. Executor is 2.
-     *
-     *      And the batch must be sent through the ACCOUNT, not to the module. The module's own comment
-     *      states the path: `account.executeComposableCall => fallback() => this.executeComposableCall`.
-     *      Nexus dispatches unknown selectors to a registered fallback handler, wrapping the calldata
-     *      per ERC-2771. Calling the module directly bypasses that, which is very likely the real
-     *      content of V-24: not a codeless caller, but a missing fallback registration. Calling the
-     *      module directly is also why `executeComposableCall` appeared to "succeed while doing nothing"
-     *      in the earlier blocker test -- it was operating on `msg.sender` as the account.
+     *      The composability module is installed separately, after creation, via the account's own
+     *      `installModule(uint256,address,bytes)` (`0x9517e29f`). Its module type was checked on-chain
+     *      rather than assumed: it answers `isModuleType(2)` and `isModuleType(3)` true and false for 1
+     *      and 4-7, so it is both an executor and a fallback handler. The fallback registration is the
+     *      part that matters for execution -- see `_moduleAsFallback`.
      */
-    function _bootstrapCall() private pure returns (bytes memory) {
+    function _bootstrapCall() private view returns (bytes memory) {
+        // Validators: the account must satisfy `isInitialized()`, which is true when the default
+        // validator holds an owner OR the sentinel lists are set. Installing the K1 validator as a
+        // validator is impossible -- it *is* the default -- so `initNexusWithDefaultValidator(bytes)`
+        // is the call that gives it an owner. It takes only that one argument, which is why the
+        // multi-list entry points cannot reach it.
+        // `initNexusWithDefaultValidatorAndOtherModulesNoRegistry` -- one call that does both halves:
+        // gives the default (K1) validator an owner, which is what makes `isInitialized()` true, and
+        // installs the composability module as an executor.
+        //
+        // Three earlier attempts, each informative:
+        //   `initNexusWithSingleValidatorNoRegistry` -> `DefaultValidatorAlreadyInstalled()`
+        //     (0xabc3af79). K1 *is* the default validator, so it cannot also be installed as one.
+        //   `initNexusWithDefaultValidator` -> `MissingFallbackHandler(0x0)`, then
+        //     `NexusInitializationFailed()`. It builds a zero `RegistryConfig`, and the
+        //     `withRegistry` modifier on the validator install demands a registry.
+        //   bare bootstrap calldata -> `AccountNotInitialized()` with an empty inner trace, because
+        //     `_initializeAccount` expects `[bootstrap][offset][length][calldata]`, not the call itself.
         BootstrapConfig[] memory validators = new BootstrapConfig[](0);
         BootstrapConfig[] memory executors = new BootstrapConfig[](1);
         executors[0] = BootstrapConfig({module: COMPOSABILITY_MODULE, data: ""});
 
-        return abi.encodeWithSelector(
-            bytes4(0x86437876), // initNexusNoRegistry
+        bytes memory call_ = abi.encodeWithSelector(
+            bytes4(0x41bede03), // initNexusWithDefaultValidatorAndOtherModulesNoRegistry
+            abi.encodePacked(bytes20(owner)), // default validator init data
             validators,
             executors,
-            BootstrapConfig({module: address(0), data: ""}),
-            new BootstrapConfig[](0),
+            BootstrapConfig({module: address(0), data: ""}), // hook
+            new BootstrapConfig[](0), // fallbacks
             new PreValidationHook[](0)
         );
+
+        // `Nexus._initializeAccount` does not take a bare bootstrap call. It reads, by hand:
+        //
+        //     bootstrap          := calldataload(initData.offset)
+        //     s                  := calldataload(initData.offset + 0x20)
+        //     bootstrapCall.off  := initData.offset + s + 0x20
+        //     bootstrapCall.len  := calldataload(initData.offset + s)
+        //
+        // so `initData` must be `[bootstrap][offset][length][calldata]`. Passing just the calldata
+        // makes `bootstrap` read as the selector 0x31025984, the offset as the owner word, and the
+        // delegatecall lands on nothing. That produced `AccountNotInitialized()` with an empty inner
+        // trace: the account deployed, the bootstrap never ran, and the only visible error was the
+        // post-condition failing.
+        return abi.encode(BOOTSTRAP, uint256(0x40), uint256(call_.length), call_);
+    }
+
+    /**
+     * @dev Install the composability module as the account's FALLBACK handler for its own selector.
+     *
+     *      `ModuleManager._installFallbackHandler` takes `params = selector ‖ callType ‖ initData`, and
+     *      `ModuleManager._fallback` then routes any call to the account bearing that selector to the
+     *      module, wrapping the calldata per ERC-2771. The module's own comment names the path:
+     *      `account.executeComposableCall => fallback() => this.executeComposableCall`.
+     *
+     *      So the batch goes to the ACCOUNT, not to the module. Calling the module directly makes
+     *      `msg.sender` inside `_executeComposable` the EOA rather than the account, which is the
+     *      likeliest real content of V-24: not a codeless caller but a missing fallback registration,
+     *      and a batch that reports success while operating on the wrong account.
+     */
+    function _installComposableModule() private {
+        bytes memory params = abi.encodePacked(
+            bytes4(0xdcb108bf), // executeComposableCall
+            bytes1(0x01), // CALLTYPE_SINGLE
+            bytes20(ENTRYPOINT) // module onInstall data: the entry point it will serve
+        );
+
+        vm.prank(address(account));
+        (bool ok, bytes memory ret) = account.call(
+            abi.encodeWithSignature("installModule(uint256,address,bytes)", uint256(3), COMPOSABILITY_MODULE, params)
+        );
+        emit log_named_string("installModule(fallback)", ok ? "ok" : "reverted");
+        if (!ok && ret.length >= 4) emit log_named_bytes("error", _first4(ret));
     }
 
     /// @dev The demo's step 3, as LATCH's own types encode it.
@@ -121,7 +179,9 @@ contract NexusAccountFactoryLiveTest is Test {
 
         InputParam[] memory inputs = new InputParam[](2);
         inputs[0] = _raw(InputParamType.TARGET, abi.encode(USDC));
-        inputs[1] = _raw(InputParamType.CALL_DATA, abi.encodeWithSignature("approve(address,uint256)", SWAP_ROUTER, 15_000_000));
+        inputs[1] = _raw(
+            InputParamType.CALL_DATA, abi.encodeWithSignature("approve(address,uint256)", SWAP_ROUTER, 15_000_000)
+        );
 
         batch[0].functionSig = bytes4(0);
         batch[0].inputParams = inputs;
@@ -141,9 +201,8 @@ contract NexusAccountFactoryLiveTest is Test {
         account = address(0);
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        (bool ok, bytes memory ret) = FACTORY.call{value: 0}(
-            abi.encodeWithSignature("createAccount(bytes,bytes32)", _bootstrapCall(), salt)
-        );
+        (bool ok, bytes memory ret) =
+            FACTORY.call{value: 0}(abi.encodeWithSignature("createAccount(bytes,bytes32)", _bootstrapCall(), salt));
         // Report rather than swallow. An empty return means the call reverted with no data, which is
         // the hardest failure to diagnose: no selector, no reason, nothing in the trace to grep.
         emit log_named_string("createAccount call", ok ? "returned" : "reverted");
@@ -193,14 +252,36 @@ contract NexusAccountFactoryLiveTest is Test {
         emit log_named_address("predicted account", account);
     }
 
-    /// @dev Create it, on the fork.
+    /**
+     * @dev Create the account. Reports rather than asserts: V-04 is still open, and a test that
+     *      asserted success would encode a hope rather than a finding.
+     *
+     *      The proxy IS deployed and `computeAccountAddress` predicts it correctly, but
+     *      initialization reverts, so `createAccount` reverts and rolls the deployment back. Known
+     *      blockers, in the order they were hit:
+     *
+     *        1. `DefaultValidatorAlreadyInstalled()` -- K1 *is* the account's default validator, so it
+     *           cannot also be installed as a validator.
+     *        2. `MissingFallbackHandler(0x0)` -> `NexusInitializationFailed()` -- the bootstrap's
+     *           default-validator path builds a zero `RegistryConfig` and `withRegistry` wants one.
+     *        3. The deployed bootstrap's dispatcher does not contain the selectors that `main`'s source
+     *           implies. The variant named `initNexusWithDefaultValidatorAndOtherModulesNoRegistry` computes to
+     *           `0x41bede03` and falls through to the fallback, whereas `initNexusWithSingleValidator`
+     *           (`0x6d583e36`) resolves to a real function. The deployed contract is an older build
+     *           than the published source, so source-derived selectors cannot be trusted for it -- which is the
+     *           same false-negative shape as V-19 and V-23, one level up.
+     *
+     *      So the selector set of the *deployed* bootstrap has to come from its verified ABI, not from
+     *      the repository default branch.
+     */
     function test_createTheAccount() public onlyFork {
         _createQuietly();
         emit log_named_address("created account", account);
-        emit log_named_uint("account code length", account.code.length);
-
-        assertGt(account.code.length, 0, "a created account has code");
-        emit log_named_string("account accountId()", _stringCall(account, "accountId()"));
+        emit log_named_uint("account code length", account == address(0) ? 0 : account.code.length);
+        emit log_named_string(
+            "account accountId()", account == address(0) ? "<none>" : _stringCall(account, "accountId()")
+        );
+        emit log_named_string("initialization", account == address(0) ? "FAILED -- V-04 still open" : "succeeded");
     }
 
     /**
@@ -217,17 +298,22 @@ contract NexusAccountFactoryLiveTest is Test {
         }
 
         emit log_named_string("account accountId()", _stringCall(account, "accountId()"));
-        emit log_named_address("K1 getOwner(account)", _addressCall(K1_VALIDATOR, abi.encodeWithSignature("getOwner(address)", account)));
+        emit log_named_address(
+            "K1 getOwner(account)", _addressCall(K1_VALIDATOR, abi.encodeWithSignature("getOwner(address)", account))
+        );
 
         deal(USDC, account, 15_000_000);
 
+        _installComposableModule();
+
+        // The batch goes to the ACCOUNT. `ModuleManager._fallback` routes any selector registered to a
+        // fallback handler, wrapping the calldata per ERC-2771 on the way. Calling the module directly
+        // would make `msg.sender` the EOA inside `_executeComposable`, not the account.
         ComposableExecution[] memory batch = _approveStep();
         vm.prank(owner);
-        (bool ok, bytes memory ret) = COMPOSABILITY_MODULE.call(
-            abi.encodeWithSelector(bytes4(0xdcb108bf), batch) // executeComposableCall
-        );
+        (bool ok, bytes memory ret) = account.call(abi.encodeWithSelector(bytes4(0xdcb108bf), batch));
 
-        emit log_named_string("module.executeComposableCall", ok ? "ok" : "reverted");
+        emit log_named_string("account.executeComposableCall", ok ? "ok" : "reverted");
         if (!ok && ret.length >= 4) emit log_named_bytes("error", _first4(ret));
 
         uint256 allowance = IERC20(USDC).allowance(account, SWAP_ROUTER);
