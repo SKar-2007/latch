@@ -1,6 +1,15 @@
-import type { ComposableExecution } from "@latch/client";
-import { Panel } from "@/components/ui";
+import { useMemo } from "react";
+import {
+  decodeBatch,
+  encodeBatch,
+  type ComposableExecution,
+  type StepView,
+} from "@latch/client";
+import { Alert, Button, Panel } from "@/components/ui";
 import type { Policy, SimulationResult } from "@/app/state";
+import { PlanSummary } from "./PlanSummary";
+import { StepRow } from "./StepRow";
+import "./decoder.css";
 
 export interface BatchPreviewProps {
   /** The batch under review. Rendered as a numbered plan, never as hex. */
@@ -14,21 +23,43 @@ export interface BatchPreviewProps {
   readonly onEdit?: () => void;
 }
 
+type DecodeOutcome =
+  | { readonly ok: true; readonly steps: readonly StepView[] }
+  | { readonly ok: false; readonly reason: string };
+
 /**
- * Wave 1, seat B owns this file.
+ * `decodeBatch` reads encoded calldata, so the entries are round-tripped through `encodeBatch` —
+ * which validates them first. A batch the engine would reject at signing time is reported here as a
+ * decode failure rather than thrown out of render.
+ */
+function decodeSteps(
+  calls: readonly ComposableExecution[],
+  names: Readonly<Record<string, string>> | undefined,
+): DecodeOutcome {
+  try {
+    return { ok: true, steps: decodeBatch(encodeBatch(calls), names !== undefined ? { names } : {}) };
+  } catch (cause) {
+    return { ok: false, reason: cause instanceof Error ? cause.message : String(cause) };
+  }
+}
+
+/**
+ * The decoder. The reason this product exists: a user cannot review a hex blob, so the batch is
+ * rendered as a numbered plan of what will be called, with what, under which gates, and what may
+ * still change before execution.
  *
- * This stub exists so the app compiles while the real decoder is being built. Replace the body,
- * keep the export name and the props above.
+ * Three rules are non-negotiable (docs/06, `<BatchPreview>`; brief D1–D4):
  *
- * Three rules are non-negotiable (docs/06, `<BatchPreview>`):
  *   1. `SKIP` renders as "not checked", never as a pass.
- *   2. The constraint's actual operator is shown. `GTE 1000` and `LTE 1000` are not a tick.
+ *   2. The constraint's actual operator is shown. `≥ 1000` and `≤ 1000` are not a tick.
  *   3. A `STATIC_CALL` fetcher renders the call that will produce the value, never a value — even
  *      when a simulation has already produced one. Simulated values are labelled simulated.
- *
- * Green (`GateTone "pass"`) is reserved for an outcome the chain has already produced.
+ *   4. Only `checked | not-checked | any-of | undecodable` tones are emitted. Green (`pass`) belongs
+ *      to an outcome the chain has already produced, and nothing here has run.
  */
-export function BatchPreview({ calls }: BatchPreviewProps) {
+export function BatchPreview({ calls, names, policy, simulation, onEdit }: BatchPreviewProps) {
+  const decoded = useMemo(() => decodeSteps(calls, names), [calls, names]);
+
   if (calls.length === 0) {
     return (
       <Panel title="The plan">
@@ -37,15 +68,68 @@ export function BatchPreview({ calls }: BatchPreviewProps) {
     );
   }
 
+  if (!decoded.ok) {
+    return (
+      <Panel title="The plan">
+        <Alert tone="warn" title="this batch cannot be decoded">
+          <p>
+            The entries failed validation before they could be read back, so there is nothing honest
+            to show. Nothing is hidden — the batch itself is the problem.
+          </p>
+          <p className="dec-error-reason">{decoded.reason}</p>
+        </Alert>
+      </Panel>
+    );
+  }
+
+  const { steps } = decoded;
+
   return (
-    <Panel title={`The plan — ${calls.length} steps`} tone="acid">
-      <ol style={{ margin: 0, padding: "var(--s-4) var(--s-6)", listStyle: "decimal" }}>
-        {calls.map((_, i) => (
-          <li key={i}>
-            <code>step {i + 1} — decoder not wired yet</code>
-          </li>
-        ))}
-      </ol>
+    <Panel
+      title={`The plan — ${steps.length} steps`}
+      tone="acid"
+      aside={onEdit !== undefined ? <Button size="sm" onClick={onEdit}>Edit</Button> : undefined}
+    >
+      <div className="dec">
+        {simulation != null && <SimulationBanner simulation={simulation} />}
+        <PlanSummary steps={steps} />
+        <ol className="dec-steps">
+          {steps.map((step) => (
+            <StepRow
+              key={step.index}
+              step={step}
+              names={names}
+              policy={policy?.[step.index]}
+            />
+          ))}
+        </ol>
+      </div>
     </Panel>
+  );
+}
+
+/**
+ * The banner above the plan.
+ *
+ * A simulation is an `eth_call` over these exact bytes: evidence about the batch, not something the
+ * chain produced. It is deliberately `info` rather than any outcome tone, it never carries a green,
+ * and it never leaks its numbers into a parameter line (docs/06, `<BatchPreview>` rule 3; brief D3).
+ */
+function SimulationBanner({ simulation }: { readonly simulation: SimulationResult }) {
+  const at = new Date(simulation.at).toLocaleTimeString();
+
+  return (
+    <div className="dec-sim">
+      <Alert tone="info" title="simulated — not guaranteed">
+        <p>
+          An <code>eth_call</code> over these exact bytes, run at <span className="ui-mono">{at}</span>.
+          Nothing has executed: this is not a result the chain produced, and execution can still
+          differ from it.
+        </p>
+        {simulation.message !== undefined && (
+          <p className="dec-sim__message">{simulation.message}</p>
+        )}
+      </Alert>
+    </div>
   );
 }

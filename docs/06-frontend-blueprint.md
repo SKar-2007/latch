@@ -2,7 +2,7 @@
 title: Frontend blueprint
 status: draft
 project: LATCH
-last_reviewed: 2026-10-02
+last_reviewed: 2026-10-03
 sources: appendix/sources.md (R1, D1, D3, D5, D6, S2)
 ---
 
@@ -22,6 +22,12 @@ because conflating them is how these systems get exploited.
 | Account | `@biconomy/abstractjs` | Nexus via `toMultichainNexusAccount` |
 | Network | Base Sepolia, chain ID 84532 | See `10-deployment-runbook.md` |
 | Wallet | viem wallet client | EIP-1193 or injected |
+
+**As built.** `web/` installs neither Biconomy package. The batch is constructed by `@latch/client`,
+whose ABI codec exists because `viem` cannot encode the nested tuple (see
+[09](09-testing-strategy.md)); the two MEE paths are declared and refuse by name rather than
+downgrading silently to a raw send. The rows above are the stack those paths will use when the SDK
+is a dependency.
 
 The deck claims EIP-712 structured signing for intent submission. That is true and it is a
 **convenience layer**, not the authorisation mechanism. The section below is explicit about why.
@@ -104,15 +110,20 @@ to specific chain IDs and accounts" is correct and is exactly this table.
 <App>
 ├── <ConnectWallet>          account, chain, module-installed status
 ├── <IntentBuilder>
-│   ├── <TokenSelector>      input token, amount
+│   ├── <TokenSelector>      input token
+│   ├── <AmountInput>        amount, parsed — never defaulted
 │   ├── <SlippageControl>    fixed presets only. Never free text. See below
 │   ├── <BoundsEditor>       min output, price band, max staleness
 │   └── <PolicyToggle>       REVERT_BATCH | SKIP_CALL, per segment
 ├── <BatchPreview>           ← the decoder. The most important component
 ├── <SimulationPanel>       eth_call result, revert reason, gas
 ├── <SignButton>             EIP-712, then UserOp or authorization
-└── <ExecutionTracker>       submission, receipt, decoded events
+├── <ExecutionTracker>       submission, receipt, decoded events
+└── <DemoPanel>              presenter's driver. Refuses to run on an unconfigured address
 ```
+
+The page around them is header, hero, the three explanatory sections, and footer. Everything meets
+in the composition root; feature components never import one another.
 
 ### `<BatchPreview>`
 
@@ -174,11 +185,17 @@ a confirmation that names what will be skipped and what the provenance invariant
 
 ## Build and preview flow
 
+**As built.** Without the Biconomy SDK, the batch is built by `@latch/client` and the preview is a
+`viem` `call` plus `estimateGas` against a pinned sender on one chain. The sample below is the shape
+the MEE wiring will use.
+
 ```typescript
 const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(RPC_URL, { batch: true, retryCount: 3 }),
-  fallback: [http(PRIMARY_RPC), http(SECONDARY_RPC)],   // see below
+  transport: fallback([
+    http(PRIMARY_RPC, { batch: true, retryCount: 3, retryDelay: 300, timeout: 10_000 }),
+    http(SECONDARY_RPC),
+  ]),
 });
 
 const account = await toMultichainNexusAccount({
@@ -209,15 +226,16 @@ The deck names "multi-provider RPC connection fallbacks" as a mitigation for rat
 ```typescript
 const client = createPublicClient({
   chain: baseSepolia,
-  transport: http(PRIMARY_RPC, {
-    batch: true,
-    retryCount: 3,
-    retryDelay: 300,
-    timeout: 10_000,
-  }),
-  fallback: [http(SECONDARY_RPC), http(TERTIARY_RPC)],
+  transport: fallback([
+    http(PRIMARY_RPC, { batch: true, retryCount: 3, retryDelay: 300, timeout: 10_000 }),
+    http(SECONDARY_RPC),
+    http(TERTIARY_RPC),
+  ]),
 });
 ```
+
+`web/src/core/chain.ts` splits this in two: `readClient` takes the list above, and `writeClient` is a
+single `http(RPC_URLS[0])`. A rotating transport is how a timed-out call becomes two transactions.
 
 Two cautions:
 
@@ -237,6 +255,11 @@ Two cautions:
 | `meeClient.getFusionQuote` | External wallet (MetaMask, Rabby) | Fusion payload |
 | Bundler UserOp | Self-hosted bundler, `toNexusAccount` | UserOp |
 | Raw `executeComposable` | Debugging, direct verification | UserOp |
+
+**As built.** This build wires one path: `raw`, sent through the injected wallet over
+`eth_sendTransaction`, not sponsored. The `mee` and `fusion` paths exist, are labelled as
+unavailable, and reject with `MEE path not wired — requires @biconomy/abstractjs`. V-01 settles the
+account version question before either can be wired for real.
 
 The MEE quote instruction marks a batch as composable:
 
@@ -277,18 +300,28 @@ stateDiagram-v2
 or retry" is. The mapping table belongs in the same file as the decoder, because both read the same
 struct.
 
+The diagram is the happy spine. `TRANSITIONS` in `web/src/app/state/types.ts` also carries the
+recovery edges — disconnect from any live phase, edit a preview back to `building`, cancel a
+signature back to `previewing`, retry from `failed` — and rejects any move that is not listed rather
+than applying it.
+
 ## Environment
+
+What `web/` actually reads:
 
 | Variable | Purpose |
 |---|---|
-| `VITE_RPC_PRIMARY`, `VITE_RPC_SECONDARY`, `VITE_RPC_TERTIARY` | Public RPC endpoints |
-| `VITE_BICONOMY_API_KEY` | MEE, required for sponsorship |
-| `VITE_CHAIN_ID` | `84532` |
-| `VITE_COMPOSABILITY_MODULE` | Module address, pinned not discovered |
-| `VITE_COMPOSABLE_STORAGE` | Storage address, pinned |
-| `VITE_FEED_GUARD` | Deployed `FeedGuard` |
-| `VITE_QUOTER_GUARD` | Deployed `QuoterGuard` |
+| `VITE_RPC_PRIMARY`, `VITE_RPC_SECONDARY`, `VITE_RPC_TERTIARY` | Public RPC endpoints. An unset slot is skipped, never substituted |
+| `VITE_FEED_GUARD` | Deployed `FeedGuard`. Empty means `not configured`, never a plausible address |
+| `VITE_QUOTER_GUARD` | Deployed `QuoterGuard`. Same rule |
 | `VITE_FAILSAFE` | `off` by default. See `adr/0002` |
+| `VITE_MOCK_ORACLE` | Demo oracle address. Unset or malformed, and the demo driver disables itself |
+| `VITE_EXPLORER_URL` | Explorer base URL for receipt links. Unset, and the tracker prints the hash to paste |
+| `VITE_BICONOMY_API_KEY` | MEE sponsorship. Not read by this build; required once the SDK is a dependency |
+
+What is not an environment variable: `chainId`, the composability module and composable storage are
+constants in `web/src/core/addresses.ts`. `VITE_CHAIN_ID` is not read. Pinning them in source puts
+them in review rather than in one deployment's `.env`, which is the same argument as below.
 
 Module and helper addresses are configuration, never discovered from the chain at runtime. A selector
 collision or an address swap must be caught by review, not by whatever the network returns.

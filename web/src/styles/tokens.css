@@ -109,6 +109,16 @@
   --shadow-lg: 10px 10px 0 var(--c-ink);
   --shadow-acid: 6px 6px 0 var(--c-acid);
   --shadow-latch: 6px 6px 0 var(--c-latch);
+  /* Mechanical press states. The button translates into its shadow rather than changing colour,
+     so the geometry of the shadow is part of the motion language, not a one-off value. */
+  --shadow-xs: 3px 3px 0 var(--c-ink);
+  --shadow-hover: 6px 6px 0 var(--c-ink);
+  --shadow-press: 0 0 0 var(--c-ink);
+
+  /* The graph-paper grid drawn behind the page. Its alpha is ink at 5.5% — expressed once, so the
+     grid cannot drift from the ink it is made of. */
+  --grid-line: rgba(11, 11, 11, 0.055);
+  --grid-size: 32px;
 
   /* ---------------------------------------------------------------- motion */
   /* Brutalist motion is mechanical, not springy. No easing that overshoots. */

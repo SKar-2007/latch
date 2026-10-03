@@ -1,0 +1,382 @@
+/*
+ * `<BatchPreview>` styling.
+ *
+ * Tokens only: every colour, size, space and radius below is a `--c-*`, `--t-*`, `--s-*`, `--bw*`,
+ * `--shadow*` or `--font-*` property from `src/styles/tokens.css`. No hex, no raw font sizes, no
+ * bespoke radius — a second theme must not have to edit this file.
+ *
+ * Selectors that override a frozen primitive are doubled (`.dec-policy.dec-policy--skip`) so the
+ * override wins regardless of stylesheet order against `components/ui/ui.css`.
+ */
+
+.dec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* ---------------------------------------------------------------- simulation */
+
+.dec-sim {
+  display: block;
+}
+
+.dec-sim__message {
+  margin-top: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------------------------------------------- plan summary */
+
+.dec-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding-bottom: var(--s-4);
+  border-bottom: var(--bw-thin) solid var(--c-ink);
+}
+
+.dec-summary.dec-summary__count {
+  font-weight: var(--fw-bold);
+}
+
+/* ---------------------------------------------------------------- step list */
+
+.dec-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.dec-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+
+.dec-step__rail {
+  display: flex;
+  align-items: flex-start;
+}
+
+.dec-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--s-12);
+  min-height: var(--s-12);
+  padding: var(--s-1);
+  border: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-acid);
+  font-family: var(--font-display);
+  font-size: var(--t-3xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--c-ink);
+}
+
+.dec-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.dec-step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dec-kind.dec-kind--assert {
+  background: var(--c-surface-sunken);
+  color: var(--c-ink-muted);
+  font-weight: var(--fw-bold);
+}
+
+.dec-kind.dec-kind--call {
+  background: var(--c-surface-inverted);
+  color: var(--c-ink-inverted);
+  font-weight: var(--fw-bold);
+}
+
+.dec-step__target {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: var(--fw-bold);
+  overflow-wrap: anywhere;
+}
+
+.dec-step__target.dec-step__target--none {
+  color: var(--c-ink-muted);
+  font-weight: var(--fw-medium);
+  font-style: italic;
+}
+
+.dec-step__fn {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.dec-step__fn-tag {
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.dec-step__fn.dec-step__fn--muted {
+  color: var(--c-ink-muted);
+}
+
+/* ------------------------------------------------------------------ policy */
+
+.dec-policy-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dec-policy.dec-policy--revert {
+  background: var(--c-surface-sunken);
+  color: var(--c-ink-soft);
+  font-weight: var(--fw-bold);
+}
+
+/* Opting out of atomicity is never a neutral fact: warm signal, never green. */
+.dec-policy.dec-policy--skip {
+  background: var(--c-block-wash);
+  color: var(--c-block);
+  font-weight: var(--fw-bold);
+}
+
+.dec-policy__note {
+  font-size: var(--t-xs);
+  color: var(--c-ink-muted);
+}
+
+/* ------------------------------------------------------------------- blocks */
+
+.dec-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: var(--bw-thin) solid var(--c-ink);
+}
+
+.dec-block__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.dec-params,
+.dec-gates,
+.dec-captures {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* ------------------------------------------------------------------- params */
+
+.dec-param {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  border-left: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface-sunken);
+}
+
+/* Runtime and balance params are read on-chain at execution: they get the sky signal, so they can
+   never be mistaken for the acid of a value the signer already chose. */
+.dec-param.dec-param--runtime,
+.dec-param.dec-param--balance {
+  background: var(--c-sky-wash);
+  border-left-color: var(--c-sky);
+}
+
+.dec-param__type {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.dec-param__tag {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  padding: 0 var(--s-1);
+  border: var(--bw-thin) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+
+.dec-param__tag.dec-param__tag--literal {
+  background: var(--c-acid-wash);
+}
+
+.dec-param__tag.dec-param__tag--runtime,
+.dec-param__tag.dec-param__tag--balance {
+  background: var(--c-sky-wash);
+}
+
+.dec-param__tag.dec-param__tag--opaque {
+  background: var(--c-unchecked-wash);
+  color: var(--c-ink-muted);
+  border-style: dashed;
+}
+
+.dec-param__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  flex: 1 1 var(--s-16);
+  min-width: 0;
+}
+
+.dec-param__value {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.dec-param__mechanism {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+
+.dec-param__named {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.dec-param__name {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+}
+
+.dec-param__note {
+  font-size: var(--t-xs);
+  color: var(--c-ink-muted);
+}
+
+/* -------------------------------------------------------------------- gates */
+
+.dec-gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.dec-gate__ref {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--c-ink-muted);
+}
+
+.dec-gate__subs {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding-left: var(--s-3);
+  border-left: var(--bw-thin) dashed var(--c-ink);
+}
+
+.dec-gate__subs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.dec-gate__subs-list li {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  padding: 0 var(--s-1);
+  border: var(--bw-thin) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+
+.dec-gate__label {
+  font-size: var(--t-xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.dec-gate__reason {
+  flex-basis: 100%;
+  font-size: var(--t-xs);
+  color: var(--c-block);
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- captures */
+
+.dec-capture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+  overflow-wrap: anywhere;
+}
+
+.dec-capture__tag {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+/* ------------------------------------------------------------------- errors */
+
+.dec-error-reason {
+  margin-top: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  overflow-wrap: anywhere;
+}

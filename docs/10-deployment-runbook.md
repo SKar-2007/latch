@@ -275,7 +275,7 @@ chain. Sign it, wait for inclusion, retry.
 | Need | Amount | Source |
 |---|---|---|
 | Test ETH on Base Sepolia | ~0.05 | Base faucet, ~10 confirmations |
-| USDC on Base Sepolia | Demo size | Testnet faucet or a `MockToken` if the DEX needs a pair |
+| USDC on Base Sepolia | 15 (the demo default, below a 20-token testnet grant) | Testnet faucet or a `MockToken` if the DEX needs a pair |
 
 If the DEX requires a real WETH/USDC pool, confirm liquidity exists on Base Sepolia first. If it does
 not, the swap step is replaced by a `MockERC20` transfer pair in the demo, and the deck's "target DEX"

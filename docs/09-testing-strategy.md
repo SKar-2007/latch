@@ -148,7 +148,8 @@ Snapshot every relevant balance and storage slot before, and compare after any e
 
 ### As built
 
-`forge 1.8.4`, full suite **124 tests, 0 failures**, 8 suites.
+`forge 1.8.4`, full suite **0 failures**. The count moves as suites are added; `forge test` prints
+it on the last line of every run, so read it there rather than from this page.
 
 | Suite | File | What it proves | Result |
 |---|---|---|---|
@@ -161,7 +162,7 @@ Snapshot every relevant balance and storage slot before, and compare after any e
 Offline, the fork suite **skips** rather than fails, so `forge test` remains useful without an
 endpoint. Run the fork suite with `BASE_SEPOLIA_RPC_URL=https://sepolia.base.org forge test`.
 
-#### Two invariants that were wrong before they were right
+### Two invariants that were wrong before they were right
 
 Both are recorded because both were faults in the *tests* rather than in the contracts, and both
 produced failures that pointed squarely at the contract.
@@ -189,7 +190,7 @@ in this document, and it is not detectable by reading the output. Every handler 
 own postconditions after each action, and `FailSafeHandler._dispatch` checks that a reverted batch
 unwound every target.
 
-#### An independent reference for the arithmetic
+### An independent reference for the arithmetic
 
 `test/helpers/FullMath.sol` implements a wide `mulDiv` for the `QuoterGuard` invariants. It
 deliberately shares no logic with `QuoterGuard._scaleByBps`: it splits the *multiplicand* into 128-bit
@@ -199,8 +200,8 @@ the invariant exists to rule out.
 
 ### The client, and why it has its own ABI codec
 
-`client/` holds the builder and decoder. They have **62 tests**, and one of them matters more than the
-other sixty-one combined.
+`client/` holds the builder and decoder. They have **80 tests**, and one of them matters more than the
+other seventy-nine combined.
 
 The client cannot encode `ComposableExecution[]` with `viem`. `encodeAbiParameters` routes a nested
 tuple into its `bytes` encoder, and that encoder's `size()` helper returns `value.length` for anything
@@ -299,7 +300,8 @@ expected observable.
 `test/smoke/LiveSmoke.t.sol`, 13 tests, all against Base Sepolia at block `47_590_000`.
 
 Layer C proves the contracts behave. Layer D proves the *document* is true. Every other layer runs
-against mocks, so a wrong address in this repository would pass all 124 tests and still fail the demo.
+against mocks, so a wrong address in this repository would pass every test we have and still fail
+the demo.
 That is the specific failure this layer exists to catch, and it is why three of these tests assert
 things that look like defects:
 
@@ -327,7 +329,26 @@ true the moment the code changes, and the test's failure message says what to do
 **Nothing is submitted.** Every test is read-only or a fork-local deployment, so the suite runs
 against a public endpoint with no credentials. It skips cleanly when `BASE_SEPOLIA_RPC_URL` is unset.
 
-Offline, `forge test` reports 106 passed and 2 skipped. With an endpoint, 137 passed.
+With `BASE_SEPOLIA_RPC_URL` set, `forge test` reports 0 failed. Without it the fork and smoke suites
+skip themselves rather than failing; [CHECKLIST](../CHECKLIST.md) records the split.
+
+## The web client
+
+`web/` has its own suite, run by vitest against jsdom. It tests the frontend's behaviour rather than
+its arithmetic: the decoder's three misleading-rendering rules, the state machine's rejection of
+illegal moves, and the ten honesty rules from
+[06](06-frontend-blueprint.md) as they apply above the contract.
+
+| Area | What is asserted |
+|---|---|
+| Decoder | `SKIP` never renders as a pass; the operator is shown; a `STATIC_CALL` shows the call, not a value |
+| State machine | Every illegal transition is rejected; editing a preview clears its simulation |
+| Chain clients | The write client has no rotating transport and never broadcasts; the two broadcast sites are the injected wallet |
+| Pinned addresses | No address literal exists in `src/` outside `core/addresses.ts` |
+| Intent signing | The EIP-712 domain binds this app, this chain and this account; a refusal produces a sentence, not a code |
+
+Four gates run before a change leaves `web/`: `npm run typecheck`, `npm test`, `npm run build`, and
+`cd ../client && npm test`. The last one is a guard: the frontend must not touch `client/`.
 
 ## Coverage targets
 
@@ -350,6 +371,7 @@ than any percentage.
 | `forge test --nmt` + invariant suite | Nightly. Layer C |
 | `forge snapshot --check` | Every commit. Gas regression gate |
 | Type check and lint | Every commit |
+| `cd web && npm run typecheck && npm test && npm run build` | Every commit. Frontend |
 | Deploy and smoke | On merge to `main`, Base Sepolia |
 
 The gas snapshot check is the one teams skip and later regret. Constraint and fetcher changes alter gas
@@ -372,4 +394,5 @@ silently.
 | [04](04-constraints-and-oracles.md) | `FeedGuard` invariants |
 | [05](05-failure-semantics.md) | `FailSafeExecutor` cases |
 | [10](10-deployment-runbook.md) | Layer D commands |
+| [06](06-frontend-blueprint.md) | The rules the web suite enforces |
 | [11](11-demo-script.md) | The flow the smoke test validates |

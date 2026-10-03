@@ -68,6 +68,8 @@ If you are checking whether the original slide deck was accurate, read
 │   └── mocks/                        MockOracle, test doubles
 ├── test/                             Foundry suites
 ├── script/                           deployment
+├── client/                           pure logic, 80 tests
+├── web/                              the React client
 └── docs/                             the blueprint
     ├── 00-deck-analysis.md            deck teardown, corrections register, revised copy
     ├── 01-system-architecture.md      trust boundaries, components, sequences
@@ -83,6 +85,7 @@ If you are checking whether the original slide deck was accurate, read
     ├── 11-demo-script.md              live demo narrative
     ├── 12-risk-matrix.md              risk register
     ├── 13-composition-patterns.md     canonical flows
+    ├── identity.md                     name, voice, marks, copy deck
     ├── adr/                           architecture decision records
     ├── appendix/                      sources, glossary, design tokens, verification log
     └── technical-reference/           verbatim upstream Solidity, attributed
@@ -92,7 +95,7 @@ If you are checking whether the original slide deck was accurate, read
 
 ```bash
 forge build     # clean
-forge test                    # 146 passing, 0 failing
+forge test                    # 0 failing; count printed on the last line
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org forge test   # includes the fork and smoke suites
 
 cd client && npm install && npm test    # 80 passing: builder, decoder, demo batch, ABI parity
@@ -110,6 +113,21 @@ forge snapshot  # gas regression baseline
 `FailSafeExecutor` is deployed but not installed by default. See
 [adr/0002](docs/adr/0002-fail-safe-executor.md) and
 [adr/0001](docs/adr/0001-atomicity.md).
+
+### Web client
+
+```bash
+cd web && npm install && npm run dev    # vite dev server
+```
+
+Copy [`web/.env.example`](web/.env.example) to `web/.env` to point it at your own RPC endpoints and
+deployments. Every slot is optional: an unset one is skipped or rendered as `not configured`, never
+substituted with a plausible address.
+
+Four gates before a change leaves `web/`: `npm run typecheck`, `npm test`, `npm run build`, and
+`cd ../client && npm test` — 80 tests, which the frontend must not touch. The client is written
+against [docs/identity.md](docs/identity.md) and
+[docs/06-frontend-blueprint.md](docs/06-frontend-blueprint.md).
 
 ## Documentation conventions
 
@@ -149,6 +167,7 @@ Enum ordering in particular may change upstream.
 | [verification-log.md](docs/appendix/verification-log.md) | The verification register. Read before trusting any address |
 | [glossary.md](docs/appendix/glossary.md) | Vocabulary for the whole set |
 | [design-tokens.md](docs/appendix/design-tokens.md) | Palette, type scale, spacing, from the source deck |
+| [identity.md](docs/identity.md) | Name, voice, marks, colour and type, copy deck for the web client |
 
 ## Upstream reference
 

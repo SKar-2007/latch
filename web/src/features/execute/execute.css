@@ -13,11 +13,26 @@
 .f-sign,
 .f-exec,
 .f-revert,
-.f-digest {
+.f-digest,
+.f-block,
+.f-path {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
 }
+
+/* A labelled section inside the tracker. The order of these blocks is the reading order. */
+.f-block > .f-row {
+  margin-block-start: var(--s-1);
+}
+
+/* The path name is an enum member: mono face, sentence case, never mistaken for prose. */
+.f-path__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  color: var(--c-ink);
+}
+
 
 .f-row {
   display: flex;
@@ -68,6 +83,40 @@
   font-size: var(--t-xs);
   color: var(--c-ink-muted);
 }
+
+.f-digest__domain {
+  letter-spacing: var(--ls-caps);
+}
+
+/*
+ * "What happened": one sentence, summary weight, marked off with a hard rule so it reads as the
+ * verdict line rather than as another paragraph of prose.
+ */
+.f-happened {
+  margin: 0;
+  padding-inline-start: var(--s-3);
+  border-inline-start: var(--bw-thin) solid var(--c-ink);
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+  color: var(--c-ink);
+}
+
+/* The only link in this feature, and it only renders when a base URL is configured. */
+.f-link {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink);
+  text-decoration-thickness: var(--bw-thin);
+}
+
+.f-link:focus-visible {
+  outline: var(--bw) solid var(--c-acid);
+  outline-offset: var(--s-1);
+}
+
 
 .f-hash {
   display: flex;
