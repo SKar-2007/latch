@@ -16,7 +16,7 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | Item | State |
 |---|---|
 | `forge build` | Clean |
-| `forge test` | **137 passing, 0 failing** with an RPC endpoint. **106 passing, 2 skipped** offline |
+| `forge test` | **139 passing, 0 failing** with an RPC endpoint. **108 passing, 2 skipped** offline |
 | `contracts/FeedGuard.sol` | 1,950 B runtime. 33 unit tests, 6 invariants |
 | `contracts/QuoterGuard.sol` | 1,492 B runtime. 24 unit tests, 4 invariants |
 | `contracts/FailSafeExecutor.sol` | 6,478 B runtime. 33 integration tests, 3 invariants |
@@ -27,6 +27,9 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | Layer C property tests | **Done.** `SlotDerivation.t.sol`, 10 tests, covering the original storage collision |
 | Fork fuzzing against the live engine | **Done.** `test/fork/EncodingFuzz.t.sol`, 18 tests at block `47_590_000` |
 | Layer D live smoke tests | **Done.** `test/smoke/LiveSmoke.t.sol`, 13 tests on Base Sepolia |
+| Client builder and decoder | **Done.** `client/`, 62 tests, TypeScript strict |
+| ABI parity with Solidity | **Done.** Committed fixture; three implementations agree byte for byte |
+| `MAX_ENTRIES` and "decoder renders every constraint" | **Done.** The two `docs/09` invariants that had no code behind them |
 | V-06, DEX addresses | **Closed.** SwapRouter02 and factory cross-consistent, WETH/USDC pools have liquidity at all three fee tiers |
 | V-07, lending addresses | **Closed.** Aave V3 Pool live, provider agrees. WETH is a market; **USDC is not**, so the supply step must use WETH |
 | V-23, Base Sepolia "QuoterV2" | **Open.** The documented address does not implement `IQuoterV2`, so `QuoterGuard` cannot read live liquidity yet |

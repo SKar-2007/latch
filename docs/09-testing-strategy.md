@@ -142,9 +142,9 @@ Snapshot every relevant balance and storage slot before, and compare after any e
 | `FeedGuard` | `isFresh` never reverts on a well-formed aggregator |
 | `FeedGuard` | `isFresh` returns only `0` or `1` |
 | Slot derivation | Distinct `(account, baseSlot, index)` triples never collide across 10k samples |
-| Batch | Executing a batch twice from the same nonce fails the second time |
 | Builder | A batch with more than `MAX_ENTRIES` is rejected client-side |
 | Decoder | For any valid batch, the decoder renders every constraint with its operator |
+| ABI codec | The TypeScript encoder is byte-identical to Solidity's `abi.encode` over the same struct |
 
 ### As built
 
@@ -196,6 +196,60 @@ deliberately shares no logic with `QuoterGuard._scaleByBps`: it splits the *mult
 halves where the contract decomposes on the *divisor*. A reference implementation that reused the
 contract's decomposition would have agreed with a bug in that decomposition, which is the whole thing
 the invariant exists to rule out.
+
+### The client, and why it has its own ABI codec
+
+`client/` holds the builder and decoder. They have **62 tests**, and one of them matters more than the
+other sixty-one combined.
+
+The client cannot encode `ComposableExecution[]` with `viem`. `encodeAbiParameters` routes a nested
+tuple into its `bytes` encoder, and that encoder's `size()` helper returns `value.length` for anything
+that is not a hex string. A three-field `ComposableExecution` therefore measures as a 3-byte `bytes4`
+and the call throws. This is not a fixable declaration: `bytes32` fails identically, and the shape
+cannot be avoided, because every `InputParam` carries `bytes` plus `Constraint[]` and every
+`ComposableExecution` carries two arrays of those.
+
+So `client/src/abiCodec.ts` is a hand-written codec. And a hand-written codec tested only against
+itself proves nothing, because the builder's tests encode and decode with the same code on both sides
+and would agree on any layout, right or wrong. Three things had to be true for the codec to be
+trustworthy, and each was a real bug found by the check rather than by inspection:
+
+| Layout rule | What happens if you get it backwards |
+|---|---|
+| An array of **dynamic** tuples encodes `[len][off…][elem…]`, one offset per element | Every subsequent offset shifts. The batch validates, encodes, and fails on-chain |
+| Element offsets are measured from **after** the length word | Element 0 lands one word early, on top of the second offset |
+| `bytesN` pads on the **right**; `address` pads on the **left** | Both stay 32-byte aligned and both decode, just to the wrong value. A right-padded selector reads back as `0x00000000` |
+
+The guarantee is a committed fixture. `contracts/mocks/ParityBatch.sol` builds one deliberately awkward
+batch, `script/EmitAbiFixture.s.sol` writes Solidity's own `abi.encode` of it to
+`client/test/fixtures/batch.abi.json`, and three implementations have to agree on those bytes:
+
+| Implementation | Checked by |
+|---|---|
+| Solidity's encoder | `test/parity/AbiParity.t.sol`, which refuses to regenerate the fixture so a stale one fails |
+| The TypeScript encoder | `client/test/abiParity.test.ts` |
+| The TypeScript decoder | Same file, by re-encoding what it decoded |
+
+The fixture is written by an explicit script rather than by a test run, because a test that regenerates
+its own fixture always passes and leaves the working tree dirty, which would make a change in the wire
+format invisible in review.
+
+That fixture also caught a bug in itself. The `OR` payload was first generated as
+`abi.encode(c1, c2)` — a two-field tuple — while `ComposableExecutionLib` does
+`abi.decode(referenceData, (Constraint[]))`, which expects a length word. Both encode, both decode as
+*something*, and neither is rejected. A batch built from that fixture would have taught the client the
+wrong layout for every `OR` it ever produced.
+
+Two invariants from the table above are now real tests: `MAX_ENTRIES` (four tests, including that the
+limit holds for any value rather than only the default) and "the decoder renders every constraint",
+asserted by counting declared constraints against rendered gates so a bound cannot exist in the batch
+while being invisible on screen.
+
+The decoder's remaining rules come from `06-frontend-blueprint.md` and are each a test: `SKIP` renders
+as `not-checked` rather than `checked`, so a green tick never appears on a field that was never
+validated; every operator renders distinctly, so `GTE 100` and `≤ 100` cannot collapse into one tick;
+and a `STATIC_CALL` renders as the call that will produce the value, never as a value the client
+happens to hold from a simulation.
 
 ### Fuzzing the encoding specifically
 

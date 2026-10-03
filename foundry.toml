@@ -8,9 +8,14 @@ solc = "0.8.23"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
-via_ir = false
+via_ir = true
 bytecode_hash = "none"
-fs_permissions = [{ access = "read", path = "./" }]
+# Read everywhere, but write only to the parity fixture directory. The fixture is written solely by
+# `forge script script/EmitAbiFixture.s.sol`, never by a test run.
+fs_permissions = [
+  { access = "read", path = "./" },
+  { access = "read-write", path = "./client/test/fixtures" },
+]
 gas_reports = ["FeedGuard", "QuoterGuard", "FailSafeExecutor"]
 
 [fmt]

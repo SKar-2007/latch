@@ -1,0 +1,20 @@
+{
+  "name": "@latch/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ERC-8211 batch builder and decoder for LATCH. Pure logic, no framework dependency.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}
