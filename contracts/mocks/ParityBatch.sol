@@ -65,7 +65,7 @@ library ParityBatch {
         p[1] = InputParam({
             paramType: InputParamType.TARGET,
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            paramData: abi.encodePacked(ROUTER),
+            paramData: abi.encode(ROUTER),
             constraints: new Constraint[](0)
         });
 

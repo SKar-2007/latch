@@ -1,0 +1,143 @@
+/*
+ * LATCH design tokens.
+ *
+ * One source of truth for colour, type, spacing, geometry and motion. No component may declare a
+ * raw colour, a border-radius or a shadow of its own; if a value is not here, it does not ship.
+ *
+ * Direction: neo-brutalism. Warm paper, black ink, hard offset shadows, zero radius, heavy display
+ * type against a monospace data face. The reasoning is in docs/identity.md — the product's claim is
+ * that a signed batch is legible, so the interface has to look like it is showing you everything.
+ *
+ * Every value is a custom property so a second theme (Swiss, terminal) is a stylesheet, not a
+ * rewrite. Alternate themes set the same names on `[data-theme]`.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------- colour */
+
+  /* Surfaces, lightest to darkest. Warm paper rather than white: it separates the product from
+     the dark glass look that every other dapp uses. */
+  --c-paper: #f5f2e9;
+  --c-surface: #fffdf7;
+  --c-surface-sunken: #ece8dc;
+  --c-surface-inverted: #0b0b0b;
+
+  /* Ink. `--c-ink` is text and every border. The soft steps are for hierarchy only, never for
+     borders, because a grey border reads as an inactive border. */
+  --c-ink: #0b0b0b;
+  --c-ink-soft: #3a362e;
+  --c-ink-muted: #6e695e;
+  --c-ink-inverted: #fffdf7;
+
+  /* Brand. Acid is the primary action; latch red is the brand mark and destructive emphasis. */
+  --c-acid: #e9ff3d;
+  --c-acid-press: #cfe620;
+  --c-latch: #ff4d2e;
+  --c-latch-press: #e5341b;
+  --c-sky: #38bdf8; /* continuity with the source deck's accent. Eyebrows and highlights only */
+
+  /* Signal. These three map one to one onto a gate verdict. `--c-unchecked` is deliberately grey:
+     a constraint that was never evaluated must never look like one that passed. */
+  --c-pass: #008f4c;
+  --c-block: #e5341b;
+  --c-unchecked: #8a8578;
+
+  /* Derivatives. Tints are for wash backgrounds; never use them for text on paper. */
+  --c-pass-wash: #d9f2e4;
+  --c-block-wash: #fde2dd;
+  --c-unchecked-wash: #e7e4da;
+  --c-acid-wash: #f7ffc4;
+  --c-sky-wash: #dcf3fe;
+
+  /* ------------------------------------------------------------------ type */
+
+  --font-display: "Archivo Black", "Arial Black", "Helvetica Neue", Impact, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* Modular scale, ratio ~1.25 from 1rem. Rem so browser zoom and OS text scaling both work. */
+  --t-xs: 0.75rem;
+  --t-sm: 0.875rem;
+  --t-md: 1rem;
+  --t-lg: 1.125rem;
+  --t-xl: 1.375rem;
+  --t-2xl: 1.75rem;
+  --t-3xl: 2.25rem;
+  --t-4xl: 3rem;
+  --t-5xl: 4rem;
+
+  --lh-tight: 1.05;
+  --lh-snug: 1.25;
+  --lh-normal: 1.55;
+
+  --ls-caps: 0.08em; /* uppercase eyebrows and labels */
+  --ls-tight: -0.02em; /* display headings */
+
+  --fw-body: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+  --fw-black: 800;
+
+  /* --------------------------------------------------------------- spacing */
+  /* 4px baseline grid. Use these names; do not invent paddings. */
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+
+  --page-max: 1240px;
+  --page-gutter: var(--s-6);
+
+  /* -------------------------------------------------------------- geometry */
+
+  --radius: 0;
+  --bw: 3px; /* standard border */
+  --bw-thin: 2px; /* dense, internal separators */
+
+  --shadow: 6px 6px 0 var(--c-ink);
+  --shadow-sm: 4px 4px 0 var(--c-ink);
+  --shadow-lg: 10px 10px 0 var(--c-ink);
+  --shadow-acid: 6px 6px 0 var(--c-acid);
+  --shadow-latch: 6px 6px 0 var(--c-latch);
+
+  /* ---------------------------------------------------------------- motion */
+  /* Brutalist motion is mechanical, not springy. No easing that overshoots. */
+
+  --dur-fast: 80ms;
+  --dur: 140ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ------------------------------------------------------------------- z */
+
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
+/* High contrast preference: darken muted ink and thicken the borders rather than changing the
+   palette, so the identity survives the adaptation. */
+@media (prefers-contrast: more) {
+  :root {
+    --c-ink-muted: #4a463d;
+    --bw: 4px;
+    --bw-thin: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+  }
+}

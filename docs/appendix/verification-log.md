@@ -125,7 +125,8 @@ contract against `main` is the mistake; the bytecode survey is the correction.
 | V-01 | MEE version usable on Base Sepolia | MEE execution path | `createMeeClient` against Base Sepolia staging |
 | **V-06** | DEX router address on Base Sepolia | `VERIFIED` | See the DEX table below. Real liquidity confirmed |
 | **V-07** | Lending pool address on Base Sepolia | `VERIFIED, WITH A CAVEAT` | See the lending table below. WETH is a listed market; **USDC is not** |
-| **V-23** | The address Uniswap labels `QuoterV2` on Base Sepolia is not a `QuoterV2` | `FOUND` | See below. Blocks the live slippage demo |
+| **V-23** | The address Uniswap labels `QuoterV2` on Base Sepolia is not a `QuoterV2` | `FOUND` | See below. Blocks the live slippage bound |
+| **V-24** | The demo's `approve` step creates no allowance against the live module | `FOUND, UNRESOLVED` | See below. Blocks demo steps 3 to 6 |
 | V-10 | Enum ordering stable across MEE versions | Encoding correctness | Diff `ComposabilityDataTypes.sol` on upgrade |
 | V-17 | Storage address matches the SDK constant | Capture correctness | One-line comparison |
 
@@ -236,6 +237,62 @@ demo can compute a live slippage bound on this chain. Options, in order of prefe
 
 Option 2 is the one that preserves the property the project exists to demonstrate, and it is the
 reason this finding matters beyond the demo.
+
+## V-24, the approve step does nothing visible
+
+Found by executing the demo batch against the deployed module, not by reading it.
+
+Step 3 of the demo is `USDC.approve(router, <balance>)`. Executed on a fork at block `47_590_000`:
+
+```
+entry 3 (approve USDC -> router)   module reports success
+allowance(account, router)        0
+allowance(module,  router)         0
+balance(account)                  unchanged
+```
+
+The amount resolves correctly -- the trace shows `balanceOf` being called and returning `25_000_000` --
+so the `STATIC_CALL` half of the entry is right. But no allowance appears for the account or for the
+module, which is the worst of the available outcomes: the module reports success and nothing was
+approved.
+
+Two candidate causes, neither confirmed without the module's source:
+
+1. **Dispatch identity.** The module may issue composed calls from an address other than the caller, so
+   an approval created for the caller is not the approval the swap will look for.
+2. **Calldata assembly.** The composed call may not be `approve(router, amount)`. The selector and
+   argument order are then the suspects, and the amount resolving correctly narrows it to the layout
+   rather than the values.
+
+What this blocks: demo steps 3 to 6, which is everything after the two assertions. Steps 1 and 2 --
+the freshness gate and the USDC balance gate -- execute correctly against the live module, and
+`test_readOnlyStepsExecute` asserts that.
+
+`test_knownBlocker_approveCreatesNoAllowance` asserts only what is true and matters: no allowance was
+created and no value moved. It is deliberately not asserting that the step "works". A test asserting a
+bug would be worse than no test, because it would fail the moment the bug is fixed and would look like
+a regression.
+
+## Three bugs the live module found that no client-side test could
+
+Every test in `client/` passed throughout, because every one of them encodes and decodes with the same
+code on both sides of the comparison. Running the batch against the deployed module was the only thing
+that could catch these:
+
+| Bug | Client-side appearance | On-chain effect |
+|---|---|---|
+| `words()` returned a `0x`-prefixed string concatenated after a selector | Encodes, validates, round-trips | A literal `0x` in the middle of the calldata |
+| The selector was placed in the `CALL_DATA` param instead of `functionSig` | Encodes, validates, round-trips | A call to selector `0x00000000` |
+| `target()` emitted a 20-byte address instead of a 32-byte word | Encodes, validates, round-trips | `abi.decode(paramData, (address))` reverts, with empty return data |
+
+And one design error, which no bug could catch because it was a misreading of the encoding:
+
+| Design error | Why it matters |
+|---|---|
+| A constraint on a `RAW_BYTES` param is checked against the *literal bytes the signer supplied*, not against a call result. The freshness gate therefore had to be a `STATIC_CALL` | `callData(isFresh(...), [eq(1)])` compares `1` against the feed's own address, fails every time, and reports a perfectly fresh feed as stale |
+
+A batch can be byte-perfect, pass every structural check, satisfy every documented length rule, and
+still mean the wrong thing. Only executing it settles what it does.
 
 ## What the fuzzer classifies as a pass
 

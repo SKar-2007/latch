@@ -36,6 +36,12 @@ function addr20(address: string): Hex {
  *
  * At most one per entry, because two targets would mean two different contracts receiving one
  * calldata. The engine rejects the second rather than picking one.
+ *
+ * `paramData` is a full 32-byte word, not the bare 20-byte address. The module reads it with
+ * `abi.decode(processedInput, (address))`, and Solidity's decoder requires 32 bytes for an address.
+ * A 20-byte value reverts with empty return data, which is a miserable thing to debug from a
+ * transaction receipt: the batch encodes, validates client-side, and dies on-chain with nothing to
+ * go on. Found by executing a real batch against the deployed module.
  */
 export function target(address: string): InputParam {
   if (!isAddress(address, { strict: false })) {
@@ -44,7 +50,7 @@ export function target(address: string): InputParam {
   return {
     paramType: InputParamType.TARGET,
     fetcherType: InputParamFetcherType.RAW_BYTES,
-    paramData: addr20(address),
+    paramData: `0x${addr20(address).slice(2).padStart(64, "0")}` as Hex,
     constraints: [],
   };
 }

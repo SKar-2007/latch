@@ -92,10 +92,10 @@ If you are checking whether the original slide deck was accurate, read
 
 ```bash
 forge build     # clean
-forge test                    # 139 passing, 0 failing
+forge test                    # 146 passing, 0 failing
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org forge test   # includes the fork and smoke suites
 
-cd client && npm install && npm test    # 62 passing: builder, decoder, ABI parity
+cd client && npm install && npm test    # 80 passing: builder, decoder, demo batch, ABI parity
 forge snapshot  # gas regression baseline
 ```
 

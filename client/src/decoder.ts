@@ -226,7 +226,8 @@ function describeEntry(
 }
 
 function nameOf(paramData: Hex, names: DescribeOptions["names"]): string {
-  const addr = `0x${paramData.slice(2, 42)}`;
+  // A `TARGET` param is a 32-byte word with the address in its low-order 20 bytes.
+  const addr = `0x${paramData.slice(-40)}`;
   const named = names?.[addr.toLowerCase()] ?? names?.[addr];
   return named ?? addr;
 }
@@ -238,7 +239,7 @@ function describeParam(p: {
 }): ParamSource {
   switch (p.fetcherType) {
     case InputParamFetcherType.RAW_BYTES: {
-      if (p.paramType === InputParamType.TARGET) return { kind: "literal", label: p.paramData };
+      if (p.paramType === InputParamType.TARGET) return { kind: "literal", label: nameOf(p.paramData, undefined) };
       if (p.paramType === InputParamType.VALUE) {
         return { kind: "literal", label: `${uint(p.paramData)} wei` };
       }

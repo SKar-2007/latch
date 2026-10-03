@@ -1,0 +1,372 @@
+/*
+ * UI primitives. Owned by Wave 0 and frozen for the parallel waves: every other component imports
+ * from here and none of them edits these files. If a primitive is missing, the wave asks for it
+ * rather than rebuilding it locally, so there is one Button in this product.
+ */
+
+/* ------------------------------------------------------------------- button */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-5);
+  border: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-family: var(--font-body);
+  font-size: var(--t-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+  user-select: none;
+}
+
+.ui-btn:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--c-ink);
+}
+
+.ui-btn:active:not(:disabled) {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--c-ink);
+}
+
+.ui-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.ui-btn--acid {
+  background: var(--c-acid);
+}
+.ui-btn--acid:hover:not(:disabled) {
+  background: var(--c-acid-press);
+}
+
+.ui-btn--ink {
+  background: var(--c-surface-inverted);
+  color: var(--c-ink-inverted);
+}
+
+.ui-btn--danger {
+  background: var(--c-latch);
+  color: var(--c-ink-inverted);
+}
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--c-latch-press);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  box-shadow: none;
+}
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--c-acid);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-btn--sm {
+  padding: var(--s-1) var(--s-3);
+  font-size: var(--t-xs);
+  box-shadow: 3px 3px 0 var(--c-ink);
+}
+
+.ui-btn--lg {
+  padding: var(--s-4) var(--s-8);
+  font-size: var(--t-lg);
+  box-shadow: var(--shadow);
+}
+
+.ui-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+/* -------------------------------------------------------------------- panel */
+
+.ui-panel {
+  position: relative;
+  background: var(--c-surface);
+  border: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.ui-panel--flush {
+  box-shadow: none;
+}
+
+.ui-panel--sunken {
+  background: var(--c-surface-sunken);
+}
+
+.ui-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-bottom: var(--bw) solid var(--c-ink);
+  background: var(--c-surface-inverted);
+  color: var(--c-ink-inverted);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.ui-panel__header--acid {
+  background: var(--c-acid);
+  color: var(--c-ink);
+}
+
+.ui-panel__header--latch {
+  background: var(--c-latch);
+  color: var(--c-ink-inverted);
+}
+
+.ui-panel__body {
+  padding: var(--s-4);
+}
+
+.ui-panel__body--tight {
+  padding: 0;
+}
+
+/* ----------------------------------------------------------------- eyebrow */
+
+.ui-eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.ui-eyebrow--sky {
+  color: var(--c-ink);
+  background: var(--c-sky);
+  padding: 2px var(--s-2);
+}
+.ui-eyebrow--acid {
+  color: var(--c-ink);
+  background: var(--c-acid);
+  padding: 2px var(--s-2);
+}
+.ui-eyebrow--latch {
+  color: var(--c-ink-inverted);
+  background: var(--c-latch);
+  padding: 2px var(--s-2);
+}
+.ui-eyebrow--ink {
+  color: var(--c-ink-inverted);
+  background: var(--c-ink);
+  padding: 2px var(--s-2);
+}
+
+/* --------------------------------------------------------------------- chip */
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px var(--s-2);
+  border: var(--bw-thin) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.ui-chip--acid {
+  background: var(--c-acid);
+}
+.ui-chip--sky {
+  background: var(--c-sky-wash);
+}
+.ui-chip--ink {
+  background: var(--c-surface-inverted);
+  color: var(--c-ink-inverted);
+}
+.ui-chip--sunken {
+  background: var(--c-surface-sunken);
+}
+
+/* -------------------------------------------------------------- mono value */
+
+.ui-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ui-mono--truncate {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  direction: ltr;
+}
+
+.ui-mono--muted {
+  color: var(--c-ink-muted);
+}
+
+.ui-mono--lg {
+  font-size: var(--t-xl);
+  font-weight: var(--fw-bold);
+}
+
+/* --------------------------------------------------------------- gate badge */
+
+.ui-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px var(--s-2);
+  border: var(--bw-thin) solid var(--c-ink);
+  background: var(--c-surface);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ui-gate__symbol {
+  font-weight: var(--fw-black);
+}
+
+/* A gate that exists but has not been evaluated. Neutral on purpose: the decoder shows
+   comparisons, never results, so green is reserved for a value the chain has already produced. */
+.ui-gate--checked {
+  background: var(--c-sky-wash);
+}
+
+.ui-gate--not-checked {
+  background: var(--c-unchecked-wash);
+  color: var(--c-ink-muted);
+  border-style: dashed;
+}
+
+.ui-gate--any-of {
+  background: var(--c-acid-wash);
+}
+
+.ui-gate--undecodable {
+  background: var(--c-block-wash);
+  color: var(--c-block);
+}
+
+/* Evaluated states. These two are only legal after a simulation or a receipt. */
+.ui-gate--pass {
+  background: var(--c-pass-wash);
+  color: var(--c-pass);
+}
+
+.ui-gate--blocked {
+  background: var(--c-block-wash);
+  color: var(--c-block);
+}
+
+/* -------------------------------------------------------------------- meter */
+
+.ui-meter {
+  height: 14px;
+  border: var(--bw-thin) solid var(--c-ink);
+  background: var(--c-surface-sunken);
+  overflow: hidden;
+}
+
+.ui-meter__fill {
+  height: 100%;
+  background: var(--c-acid);
+}
+
+/* ------------------------------------------------------------------- alert */
+
+.ui-alert {
+  padding: var(--s-3) var(--s-4);
+  border: var(--bw) solid var(--c-ink);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--t-sm);
+}
+
+.ui-alert--pass {
+  background: var(--c-pass-wash);
+  border-left-width: 10px;
+  border-left-color: var(--c-pass);
+}
+.ui-alert--block {
+  background: var(--c-block-wash);
+  border-left-width: 10px;
+  border-left-color: var(--c-block);
+}
+.ui-alert--warn {
+  background: var(--c-acid-wash);
+  border-left-width: 10px;
+  border-left-color: var(--c-acid);
+}
+.ui-alert--info {
+  background: var(--c-sky-wash);
+  border-left-width: 10px;
+  border-left-color: var(--c-sky);
+}
+
+/* ------------------------------------------------------------------ field */
+
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.ui-field__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.ui-field__control {
+  padding: var(--s-2) var(--s-3);
+  border: var(--bw) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+}
+
+.ui-field__control:focus {
+  outline: none;
+  box-shadow: var(--shadow-sm);
+  background: var(--c-acid-wash);
+}
+
+.ui-field__hint {
+  font-size: var(--t-xs);
+  color: var(--c-ink-muted);
+}

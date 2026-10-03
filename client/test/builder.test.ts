@@ -71,8 +71,12 @@ describe("paramData encodings", () => {
     expect(data).toBe("0x12345678");
   });
 
-  it("TARGET is a 20-byte address", () => {
-    expect((target(ROUTER).paramData.length - 2) / 2).toBe(20);
+  it("TARGET is a 32-byte word holding the address", () => {
+    // Not 20 bytes. The module reads it with `abi.decode(paramData, (address))`, and Solidity's
+    // decoder needs a full word. A bare 20-byte address reverts on-chain with empty return data.
+    expect((target(ROUTER).paramData.length - 2) / 2).toBe(32);
+    // The address occupies the low-order 20 bytes.
+    expect(target(ROUTER).paramData.slice(-40).toLowerCase()).toBe(ROUTER.slice(2).toLowerCase());
   });
 
   it("VALUE is one 32-byte word", () => {

@@ -16,3 +16,6 @@ lcov.info
 *.gas-report
 # Node
 node_modules/
+
+# Web build output
+dist/

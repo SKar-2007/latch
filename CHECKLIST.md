@@ -16,7 +16,7 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | Item | State |
 |---|---|
 | `forge build` | Clean |
-| `forge test` | **139 passing, 0 failing** with an RPC endpoint. **108 passing, 2 skipped** offline |
+| `forge test` | **146 passing, 0 failing** with an RPC endpoint. **108 passing, 3 skipped** offline |
 | `contracts/FeedGuard.sol` | 1,950 B runtime. 33 unit tests, 6 invariants |
 | `contracts/QuoterGuard.sol` | 1,492 B runtime. 24 unit tests, 4 invariants |
 | `contracts/FailSafeExecutor.sol` | 6,478 B runtime. 33 integration tests, 3 invariants |
@@ -33,6 +33,7 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | V-06, DEX addresses | **Closed.** SwapRouter02 and factory cross-consistent, WETH/USDC pools have liquidity at all three fee tiers |
 | V-07, lending addresses | **Closed.** Aave V3 Pool live, provider agrees. WETH is a market; **USDC is not**, so the supply step must use WETH |
 | V-23, Base Sepolia "QuoterV2" | **Open.** The documented address does not implement `IQuoterV2`, so `QuoterGuard` cannot read live liquidity yet |
+| V-24, the demo `approve` step | **Open, unresolved.** Creates no allowance against the live module. Blocks demo steps 3-6 |
 | V-01, MEE deployment version | **Closed.** `2.2.x` deployment against a Nexus `1.3.1` account |
 
 ### Three design decisions the tests forced
@@ -143,8 +144,8 @@ in [verification-log.md](docs/appendix/verification-log.md).
 | `MockOracle` deployed with UI-driven setters | not started | — |
 | `FeedGuard` deployed and `isFresh` returning a single word | not started | — |
 | `QuoterGuard` deployed | not started | V-06 |
-| Happy-path batch, six entries, one signature | not started | — |
-| Deterministic revert demo, oracle moved out of band | not started | — |
+| Happy-path batch, six entries, one signature | **Built and encoded.** Steps 1-2 execute live; steps 3-6 blocked by V-24 | — |
+| Deterministic revert demo, oracle moved out of band | **Done.** The freshness-gate variant passes on fork | — |
 | ERC-7702 delegation demonstrated | not started | V-04 |
 | MEEScan or Basescan link captured for the recording | not started | — |
 
