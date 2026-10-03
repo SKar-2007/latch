@@ -89,10 +89,11 @@ contract QuoterGuard {
     }
 
     /**
-     * @notice As `minAmountOut`, but reverts if the live quote already fails the bound.
+     * @notice As `minAmountOut`, but reverts if the live quote already fails an explicit floor.
      * @dev Use when the batch should abort rather than proceed with a tight bound the router will
      *      reject anyway. The difference is where the failure surfaces: here it is a STATIC_CALL
      *      revert, there it is the router's own revert inside the entry.
+     * @param minExpectedOut The minimum acceptable output amount, denominated in tokenOut decimals.
      */
     function requireMinAmountOut(
         address quoter,
@@ -100,13 +101,14 @@ contract QuoterGuard {
         address tokenOut,
         uint256 amountIn,
         uint24 fee,
-        uint256 slippageBps
+        uint256 slippageBps,
+        uint256 minExpectedOut
     ) external view returns (uint256 minOut) {
         uint256 amountOut = _quote(quoter, tokenIn, tokenOut, amountIn, fee);
         minOut = _applySlippage(amountOut, slippageBps);
 
         if (minOut == 0) revert ZeroQuote(tokenIn, tokenOut, amountIn, fee);
-        if (minOut < amountIn) revert InsufficientOutput(amountOut, minOut);
+        if (minOut < minExpectedOut) revert InsufficientOutput(amountOut, minExpectedOut);
     }
 
     /**

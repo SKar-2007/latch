@@ -168,25 +168,26 @@ export function buildDemoBatch(options: DemoBatchOptions): ComposableExecution[]
       functionSig: selectorOf("approve(address,uint256)"),
       inputParams: [
         target(BASE_SEPOLIA.usdc),
-        callData(addressWord(BASE_SEPOLIA.router).slice(2) as Hex),
+        callData(addressWord(BASE_SEPOLIA.router)),
         staticCall(BASE_SEPOLIA.usdc, balanceOfCalldata(BASE_SEPOLIA.usdc, account)),
       ],
     }),
 
     // 4. [call] swap USDC for WETH, refusing anything below the signed floor.
     entry({
-      functionSig: selectorOf("exactInputSingle(address,address,uint24,uint256,uint256,uint160)"),
+      functionSig: selectorOf("exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))"),
       inputParams: [
         target(BASE_SEPOLIA.router),
         callData(
-          pack(
+          `0x${pack(
             addressWord(BASE_SEPOLIA.usdc).slice(2),
             addressWord(BASE_SEPOLIA.weth).slice(2),
             uintWord(3000n).slice(2),
+            addressWord(account).slice(2),
             uintWord(amountIn).slice(2),
             uintWord(minAmountOut).slice(2),
             ZERO_WORD, // sqrtPriceLimitX96: zero means no limit
-          ) as Hex,
+          )}` as Hex,
         ),
       ],
       outputParams: swapCapture ? [captureExecResult(swapCapture)] : [],
@@ -206,9 +207,9 @@ export function buildDemoBatch(options: DemoBatchOptions): ComposableExecution[]
       functionSig: selectorOf("supply(address,uint256,address,uint16)"),
       inputParams: [
         target(BASE_SEPOLIA.aavePool),
-        callData(addressWord(BASE_SEPOLIA.weth).slice(2) as Hex),
+        callData(addressWord(BASE_SEPOLIA.weth)),
         staticCall(BASE_SEPOLIA.weth, balanceOfCalldata(BASE_SEPOLIA.weth, account)),
-        callData(pack(addressWord(account).slice(2), ZERO_WORD) as Hex),
+        callData(`0x${pack(addressWord(account).slice(2), ZERO_WORD)}` as Hex),
       ],
     }),
   ].filter((e) => e.inputParams.length > 0 || e.outputParams.length > 0);

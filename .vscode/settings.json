@@ -1,0 +1,24 @@
+{
+  "solidity.packageDefaultDependenciesContractsDirectory": "contracts",
+  "solidity.packageDefaultDependenciesDirectory": "lib",
+  "solidity.compileUsingRemoteVersion": "v0.8.23",
+  "solidity.defaultCompiler": "remote",
+  "solidity.remappings": [
+    "forge-std/=lib/forge-std/src/",
+    "@uniswap/v3-core/=lib/v3-core/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "v3-core/=lib/v3-core/",
+    "v3-periphery/=lib/v3-periphery/contracts/"
+  ],
+  "solidity.remappingsUnix": [
+    "forge-std/=lib/forge-std/src/",
+    "@uniswap/v3-core/=lib/v3-core/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/",
+    "v3-core/=lib/v3-core/",
+    "v3-periphery/=lib/v3-periphery/contracts/"
+  ],
+  "editor.formatOnSave": true,
+  "files.associations": {
+    "*.sol": "solidity"
+  }
+}

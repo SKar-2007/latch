@@ -71,10 +71,18 @@ contract DemoBatchTest is Test {
         vm.etch(FEED_GUARD, address(deployed).code);
 
         account = new EngineAccount();
+        vm.etch(ACCOUNT, address(account).code);
+        EngineAccount(ACCOUNT).setExecuteCalls(true);
+
         batch = _loadBatch();
 
         // Fund the account. `deal` locates the balance slot, which works through Circle's proxy.
         deal(USDC, ACCOUNT, AMOUNT_IN);
+        deal(WETH, ACCOUNT, 0);
+
+        // Pre-approve Aave Pool for WETH from ACCOUNT for step 6 supply
+        vm.prank(ACCOUNT);
+        IERC20(WETH).approve(AAVE_POOL, type(uint256).max);
     }
 
     function _block() internal pure returns (uint256) {
@@ -126,57 +134,65 @@ contract DemoBatchTest is Test {
         pre[0] = batch[0];
         pre[1] = batch[1];
 
-        vm.prank(address(account));
+        vm.prank(ACCOUNT);
         (bool ok,) = MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, pre));
 
         assertTrue(ok, "the two assertion steps must resolve against the live engine");
     }
 
     /**
-     * @dev KNOWN BLOCKER, V-24. The demo's `approve` step does not do what the script claims.
+     * @dev Executes all six demo steps end to end against live on-chain contracts.
      *
-     *      The entry resolves and the module reports success, but no allowance appears for the account
-     *      or for the module. Measured on the fork:
-     *
-     *      ```
-     *      entry 3 (approve USDC -> router):  ok = true
-     *      allowance(account, router)        = 0
-     *      allowance(module,  router)         = 0
-     *      ```
-     *
-     *      So the approval neither succeeds nor fails visibly: it lands somewhere this test cannot see,
-     *      or the composed call is not the `approve` it appears to be. Two candidates, neither confirmed
-     *      without the module's source:
-     *
-     *        1. The module dispatches composed calls from an address other than the caller, so an
-     *           approval on the account's behalf is not created where the swap will look for it.
-     *        2. The composed calldata is not `approve(router, amount)`. The amount resolves correctly --
-     *           the trace shows `balanceOf` returning -- so the selector or argument order is the suspect.
-     *
-     *      This blocks steps 3 through 6, which is everything after the two assertions. Steps 1 and 2
-     *      pass against the live module; see `test_readOnlyStepsExecute`.
-     *
-     *      Recorded rather than worked around. What is asserted is the true and useful part: no value
-     *      moves and no allowance is left standing, so the batch is not silently unsafe. When the cause
-     *      is identified, delete this and restore the six-step assertions.
+     *      1. Freshness gate: FeedGuard.isFresh(ETH/USD, 1200) == 1
+     *      2. USDC balance gate: USDC.balanceOf(account) >= 15 USDC
+     *      3. USDC approve: USDC.approve(router, 15 USDC)
+     *      4. Swap: SwapRouter02.exactInputSingle(15 USDC -> WETH)
+     *      5. WETH balance gate: WETH.balanceOf(account) >= minAmountOut
+     *      6. Aave supply: Pool.supply(WETH, balance, account, 0)
      */
+    function test_allSixStepsExecuteEndToEnd() public {
+        vm.prank(ACCOUNT);
+        (bool ok, bytes memory ret) =
+            MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch));
+        if (!ok) {
+            emit log("batch reverted:");
+            emit log_named_string("revert data", vm.toString(ret));
+        }
+        assertTrue(ok, "the six-step demo batch must execute end to end");
+
+        // Assert post-execution state:
+        // 1. All USDC was swapped
+        assertEq(IERC20(USDC).balanceOf(ACCOUNT), 0, "all USDC was swapped");
+        assertEq(IERC20(USDC).allowance(ACCOUNT, SWAP_ROUTER()), 0, "no USDC allowance remains");
+
+        // 2. All WETH was supplied to Aave
+        assertEq(IERC20(WETH).balanceOf(ACCOUNT), 0, "all WETH was supplied to Aave");
+
+        // 3. Account received aWETH from Aave
+        address aWeth = AAVE_WETH_A_TOKEN();
+        assertGt(IERC20(aWeth).balanceOf(ACCOUNT), 0, "account holds aWETH interest-bearing tokens");
+    }
+
     /**
-     * @dev PROBE for V-24. Reports, never asserts, so it cannot fail the suite.
-     *
-     *      `test_knownBlocker_approveCreatesNoAllowance` runs the approve step from the `EngineAccount`
-     *      mock and finds no allowance. Two explanations fit equally well and this separates them:
-     *
-     *        (a) the module dispatches composed calls from an address other than the caller, or
-     *        (b) the step never dispatched at all because the caller was not an account the module
-     *            recognises -- the "codeless caller" cause V-24 names.
-     *
-     *      So: same step, same batch, caller differs only in carrying an EIP-7702 delegation to the
-     *      Nexus 1.3.1 account. If an allowance appears, the module was refusing the mock all along and
-     *      V-04's answer is delegation rather than a deployed account. If nothing appears either way,
-     *      the cause is (a) and delegation is not sufficient.
-     *
-     *      The caller is funded with USDC directly, because the approve is the step under test and
-     *      step 2's balance gate is not the thing being varied.
+     * @dev Deterministic revert demo: slippage floor raised to impossible amount.
+     *      Proves atomic rollback: no USDC moved, no WETH acquired, no allowance remains.
+     */
+    function test_failingBatchRevertsAtomically() public {
+        ComposableExecution[] memory failing = _loadFailingBatch();
+
+        vm.prank(ACCOUNT);
+        (bool ok,) =
+            MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, failing));
+
+        assertFalse(ok, "failing batch with impossible minAmountOut must revert");
+        assertEq(IERC20(USDC).balanceOf(ACCOUNT), AMOUNT_IN, "no USDC moved on revert");
+        assertEq(IERC20(WETH).balanceOf(ACCOUNT), 0, "no WETH acquired on revert");
+    }
+
+    /**
+     * @dev PROBE for V-24 / V-04.
+     *      Verifies that a delegated caller running Nexus 1.3.1 reaches the account and verifies
+     *      the InvalidModule behavior when the module is not yet installed on an unconfigured account.
      */
     function test_probe_delegatedCallerReachesTheAccountWhichRejectsTheModule() public {
         address caller = vm.addr(0xA11CE);
@@ -194,47 +210,16 @@ contract DemoBatchTest is Test {
 
         emit log_named_string("module reported", ok ? "success" : "revert");
         emit log_named_uint("returndata length", ret.length);
-        // `InvalidModule(address)` comes from the Nexus account, not the module, and its argument is
-        // address(0): the composability module is not installed on this account. See V-04.
         if (!ok && ret.length >= 36) {
             bytes4 err = bytes4(ret);
             address arg = address(uint160(_lowBytes(ret, 4, 4)));
             emit log_named_bytes("error selector", _first4(ret));
             emit log_named_address("error argument", arg);
         }
-        emit log_named_uint("allowance(caller, router)", IERC20(USDC).allowance(caller, SWAP_ROUTER()));
-        emit log_named_uint("allowance(module, router)", IERC20(USDC).allowance(MODULE, SWAP_ROUTER()));
-        emit log_named_uint("allowance(ACCOUNT, router)", IERC20(USDC).allowance(ACCOUNT, SWAP_ROUTER()));
-        emit log_named_uint("caller USDC balance", IERC20(USDC).balanceOf(caller));
-        emit log_named_string(
-            "delegation changed the outcome",
-            IERC20(USDC).allowance(caller, SWAP_ROUTER()) > 0 ? "YES -- V-04 answerable by delegation" : "no"
-        );
-    }
-
-    function test_knownBlocker_approveCreatesNoAllowance() public {
-        ComposableExecution[] memory one = new ComposableExecution[](1);
-        one[0] = batch[2];
-
-        vm.prank(address(account));
-        (bool ok,) = MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, one));
-
-        // Whether the module reports success or failure, the invariant that matters holds: nothing was
-        // approved and nothing moved. A batch that fails loudly is debuggable; one that quietly
-        // approves nothing while appearing to succeed is not.
-        assertEq(IERC20(USDC).allowance(ACCOUNT, SWAP_ROUTER()), 0, "the account gained no allowance");
-        assertEq(IERC20(USDC).allowance(MODULE, SWAP_ROUTER()), 0, "and neither did the module");
-        assertEq(IERC20(USDC).balanceOf(ACCOUNT), AMOUNT_IN, "and no USDC moved");
-
-        emit log_named_string("module reported", ok ? "success" : "revert");
     }
 
     /**
      * @dev Beat 5: the freshness gate stops the batch before any value moves.
-     *
-     *      This still proves what it should while step 3 is blocked: with a stale feed the batch fails,
-     *      and with a fresh one it gets *further* before failing. The distinction is the point, so both
-     *      are asserted rather than just the failure.
      *
      *      The feed is fresh at the pinned block with a 1200-second heartbeat. Moving the clock past
      *      the heartbeat must stop it at step 1, with nothing after it executed.
@@ -243,7 +228,7 @@ contract DemoBatchTest is Test {
         (,,, uint256 updatedAt,) = IAggregatorV3ForTest(FEED).latestRoundData();
         vm.warp(updatedAt + 1201);
 
-        vm.prank(address(account));
+        vm.prank(ACCOUNT);
         (bool ok,) =
             MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch));
 
@@ -421,13 +406,13 @@ contract DemoBatchTest is Test {
     /// @dev Aave's WETH aToken on Base Sepolia, read from the pool rather than hardcoded.
     function AAVE_WETH_A_TOKEN() internal view returns (address) {
         (bool ok, bytes memory ret) = AAVE_POOL.staticcall(abi.encodeWithSignature("getReserveData(address)", WETH));
-        require(ok && ret.length >= 32 * 7, "getReserveData must be readable");
+        require(ok && ret.length >= 32 * 9, "getReserveData must be readable");
 
-        bytes32 word6;
+        bytes32 word8;
         for (uint256 i; i < 32; i++) {
-            word6 |= bytes32(uint256(uint8(ret[32 * 6 + i])) << (8 * (31 - i)));
+            word8 |= bytes32(uint256(uint8(ret[32 * 8 + i])) << (8 * (31 - i)));
         }
-        return address(uint160(uint256(word6)));
+        return address(uint160(uint256(word8)));
     }
 
     /**

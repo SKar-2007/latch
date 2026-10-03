@@ -43,6 +43,12 @@ contract EngineAccount {
         return _dispatchReturnData;
     }
 
+    bool public executeCalls = true;
+
+    function setExecuteCalls(bool execute) external {
+        executeCalls = execute;
+    }
+
     function executeFromExecutor(bytes32, bytes calldata executionCalldata)
         external
         returns (bytes[] memory returnData)
@@ -64,7 +70,18 @@ contract EngineAccount {
         bytes memory callData = executionCalldata[52:];
 
         _captured.push(Captured({target: target, value: value, callData: callData, decoded: true}));
-        returnData[0] = _dispatchReturnData;
+
+        if (executeCalls && target != address(0)) {
+            (bool ok, bytes memory ret) = target.call{value: value}(callData);
+            if (!ok) {
+                assembly {
+                    revert(add(ret, 32), mload(ret))
+                }
+            }
+            returnData[0] = ret;
+        } else {
+            returnData[0] = _dispatchReturnData;
+        }
     }
 
     // -------------------------------------------------------------------------------------------

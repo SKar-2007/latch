@@ -65,4 +65,29 @@ contract SelectorPinTest is Test {
             "UNISWAP_SELECTOR must not be the keccak of the transposed signature"
         );
     }
+
+    // -------------------------------------------------------------------------------------------
+    // SwapRouter02 exactInputSingle selector pin
+    // -------------------------------------------------------------------------------------------
+
+    /// @dev SwapRouter02 struct signature: exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))
+    bytes4 constant SWAP_ROUTER02_SELECTOR = 0x04e45aaf;
+
+    /// @dev The flat form without recipient that does not exist on SwapRouter02.
+    bytes4 constant FLAT_SWAP_SELECTOR = 0xa2608210;
+
+    function test_swapRouter02MatchesCanonicalStructSelector() public pure {
+        assertEq(
+            SWAP_ROUTER02_SELECTOR,
+            bytes4(keccak256("exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))")),
+            "SWAP_ROUTER02_SELECTOR must match the ExactInputSingleParams struct signature"
+        );
+    }
+
+    function test_swapRouter02IsNotTheFlatForm() public pure {
+        assertTrue(
+            SWAP_ROUTER02_SELECTOR != bytes4(keccak256("exactInputSingle(address,address,uint24,uint256,uint256,uint160)")),
+            "SwapRouter02 requires the struct tuple with recipient, not the flat signature"
+        );
+    }
 }

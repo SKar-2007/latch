@@ -178,14 +178,43 @@ contract QuoterGuardTest is Test {
     // requireMinAmountOut
     // -------------------------------------------------------------------------------------------
 
-    function test_requireMinAmountOut_revertsWhenBoundUnderflowsTheInput() public {
-        // Bound is 99% of 100, which is below the 1000 unit input.
-        vm.expectRevert(abi.encodeWithSelector(QuoterGuard.InsufficientOutput.selector, QUOTE, 990));
-        guard.requireMinAmountOut(address(quoter), TOKEN_IN, TOKEN_OUT, 1000, FEE, 100);
+    function test_requireMinAmountOut_revertsWhenBoundUnderflowsTheFloor() public {
+        // Quote is 1000, 1% slippage gives bound 990. Floor is 995 -> reverts InsufficientOutput(1000, 995).
+        vm.expectRevert(abi.encodeWithSelector(QuoterGuard.InsufficientOutput.selector, QUOTE, 995));
+        guard.requireMinAmountOut(address(quoter), TOKEN_IN, TOKEN_OUT, 1000, FEE, 100, 995);
     }
 
     function test_requireMinAmountOut_returnsWhenBoundIsHealthy() public view {
-        assertEq(guard.requireMinAmountOut(address(quoter), TOKEN_IN, TOKEN_OUT, 100, FEE, 50), 995);
+        // Quote is 1000, 0.5% slippage gives 995. Floor is 990 -> returns 995.
+        assertEq(guard.requireMinAmountOut(address(quoter), TOKEN_IN, TOKEN_OUT, 100, FEE, 50, 990), 995);
+    }
+
+    function test_requireMinAmountOut_usdcToWeth_realisticDecimals() public {
+        address usdc = makeAddr("USDC_6");
+        address weth = makeAddr("WETH_18");
+        uint256 amountIn = 15_000_000; // 15 USDC (6 decimals)
+        uint256 expectedQuote = 5_000_000_000_000_000; // 0.005 WETH (18 decimals)
+        quoter.setAmountOut(expectedQuote);
+
+        uint256 minExpectedFloor = 4_900_000_000_000_000; // 0.0049 WETH
+        uint256 bound = guard.requireMinAmountOut(address(quoter), usdc, weth, amountIn, FEE, 50, minExpectedFloor);
+        // 0.005 * 0.995 = 0.004975 WETH
+        assertEq(bound, 4_975_000_000_000_000);
+        assertGe(bound, minExpectedFloor);
+    }
+
+    function test_requireMinAmountOut_wethToUsdc_realisticDecimals() public {
+        address weth = makeAddr("WETH_18");
+        address usdc = makeAddr("USDC_6");
+        uint256 amountIn = 1e18; // 1 WETH (18 decimals)
+        uint256 expectedQuote = 3_000_000_000; // 3000 USDC (6 decimals)
+        quoter.setAmountOut(expectedQuote);
+
+        uint256 minExpectedFloor = 2_900_000_000; // 2900 USDC
+        uint256 bound = guard.requireMinAmountOut(address(quoter), weth, usdc, amountIn, FEE, 50, minExpectedFloor);
+        // 3000 * 0.995 = 2985 USDC
+        assertEq(bound, 2_985_000_000);
+        assertGe(bound, minExpectedFloor);
     }
 
     // -------------------------------------------------------------------------------------------

@@ -94,6 +94,7 @@ contract EncodingFuzzTest is Test, IDocumentedErrors {
 
         vm.createSelectFork(rpc, _block());
         account = new EngineAccount();
+        account.setExecuteCalls(false);
     }
 
     function _block() internal pure returns (uint256) {

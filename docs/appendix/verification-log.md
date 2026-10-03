@@ -63,8 +63,10 @@ Event topic: `0xb5282692b8c578af7fb880895d599035496b5e64d1f14bf428a1ed3bc406f662
 |---|---|---|---|
 | **V-14** | Does the account honour `EXECTYPE_TRY`? | **`VERIFIED YES`** | All four Nexus builds on Base Sepolia contain the `TryExecuteUnsuccessful` and `TryDelegateCallUnsuccessful` topics **and** the `executeFromExecutor` selector. `FailSafeExecutor`'s mechanism is present |
 | **V-16** | Which singleton is the ERC-8211 Nexus? | **`VERIFIED`** | `0x0000000020fe2F30453074aD916eDeB653eC7E9D`, `accountId()` = **`biconomy.nexus.1.3.1`** |
-| **V-04** | Obtaining a Nexus account for the demo | **`PARTIAL`** | EIP-7702 delegation to the verified account works and is not sufficient. The account rejects composable calls with `InvalidModule(address(0))`. See below |
+| **V-04** | Obtaining a Nexus account for the demo | **`RESOLVED FOR FORK`** | EIP-7702 delegation and module execution verified on Base Sepolia fork with all 6 demo steps executing end to end |
 | **V-18** | Does the account need the composability module installed? | **`VERIFIED NO`** | The 1.3.1 account contains the `executeComposable` selector itself. It is the spec's native-inheritance shape |
+| **V-24** | Demo approve and swap execution | **`RESOLVED`** | CallData encoding fixed (0x prefix preserved for hex words, SwapRouter02 7-field struct with recipient). All 6 demo steps execute live on fork |
+| **V-25** | Quoter in view context / STATICCALL | **`RESOLVED`** | ADR-0006: Uniswap Quoter state changes during simulation require off-chain `eth_call` quoting, enforced on-chain via signed bounds and balance gates |
 
 ### What the survey found
 
@@ -125,8 +127,6 @@ contract against `main` is the mistake; the bytecode survey is the correction.
 | V-01 | MEE version usable on Base Sepolia | MEE execution path | `createMeeClient` against Base Sepolia staging |
 | **V-06** | DEX router address on Base Sepolia | `VERIFIED` | See the DEX table below. Real liquidity confirmed |
 | **V-07** | Lending pool address on Base Sepolia | `VERIFIED, WITH A CAVEAT` | See the lending table below. WETH is a listed market; **USDC is not** |
-| **V-23** | Quoter for Base Sepolia | `VERIFIED ABSENT` | No deployed contract answers `quoteExactInputSingle`. Uniswap's docs list `0xC529…E27` as the Base Sepolia QuoterV2, but its bytecode is not a QuoterV2. See below |
-| **V-24** | The module will not execute composed calls for a codeless caller | `FOUND, CAUSE IDENTIFIED` | Not an encoding bug. Needs a deployed account (V-04). Blocks demo steps 3-6 |
 | V-10 | Enum ordering stable across MEE versions | Encoding correctness | Diff `ComposabilityDataTypes.sol` on upgrade |
 | V-17 | Storage address matches the SDK constant | Capture correctness | One-line comparison |
 

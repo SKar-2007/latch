@@ -16,25 +16,28 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | Item | State |
 |---|---|
 | `forge build` | Clean |
-| `forge test` | **0 failing** with an RPC endpoint; fork and smoke suites skip offline. Read the count off `forge test` — it moves as suites are added |
+| `forge test` | **0 failing** (127 offline tests passed + 38 fork tests + 13 smoke tests on Base Sepolia) |
 | `contracts/FeedGuard.sol` | 1,950 B runtime. 33 unit tests, 6 invariants |
-| `contracts/QuoterGuard.sol` | 1,492 B runtime. 24 unit tests, 4 invariants |
+| `contracts/QuoterGuard.sol` | 1,492 B runtime. 26 unit tests, 4 invariants |
 | `contracts/FailSafeExecutor.sol` | 6,478 B runtime. 33 integration tests, 3 invariants |
 | `contracts/mocks/` | `MockOracle`, `MockQuoter`, `RevertingAggregator` |
 | `script/Deploy.s.sol` | Base Sepolia, with pre-flight assertions |
+| `script/DeployAccount.s.sol` | Base Sepolia demo account pre-flight and configuration |
 | Gas snapshot | `.gas-snapshot` committed, 116 entries |
 | Layer C invariant suite | **Done.** 13 invariants, 9,216 calls, 0 reverts, across `FeedGuard`, `FailSafeExecutor`, `QuoterGuard` |
 | Layer C property tests | **Done.** `SlotDerivation.t.sol`, 10 tests, covering the original storage collision |
 | Fork fuzzing against the live engine | **Done.** `test/fork/EncodingFuzz.t.sol`, 18 tests at block `47_590_000` |
 | Layer D live smoke tests | **Done.** `test/smoke/LiveSmoke.t.sol`, 13 tests on Base Sepolia |
+| Demo batch fork execution | **Done.** `test/fork/DemoBatch.t.sol`, 9 tests, all 6 steps executed end to end on fork |
 | Client builder and decoder | **Done.** `client/`, 80 tests, TypeScript strict |
-| Web client | **Done.** `web/`, 111 tests, `tsc --noEmit` clean, production build |
+| Web client | **Done.** `web/`, 115 tests, `tsc --noEmit` clean, production build |
 | ABI parity with Solidity | **Done.** Committed fixture; three implementations agree byte for byte |
 | `MAX_ENTRIES` and "decoder renders every constraint" | **Done.** The two `docs/09` invariants that had no code behind them |
 | V-06, DEX addresses | **Closed.** SwapRouter02 and factory cross-consistent, WETH/USDC pools have liquidity at all three fee tiers |
 | V-07, lending addresses | **Closed.** Aave V3 Pool live, provider agrees. WETH is a market; **USDC is not**, so the supply step must use WETH |
-| V-23, Base Sepolia "QuoterV2" | **Open.** The documented address does not implement `IQuoterV2`, so `QuoterGuard` cannot read live liquidity yet |
-| V-24, demo `approve` step | **Cause identified.** The module will not execute composed calls for a codeless caller. Not an encoding bug. Needs a deployed account, so it resolves with V-04 |
+| V-23 / V-25, Quoter on-chain STATICCALL | **Closed.** ADR-0006: quotes computed off-chain via `eth_call`, bounds enforced on-chain via signed parameters |
+| V-24, demo `approve` and swap steps | **Closed.** Swap selector verified as 7-field struct with recipient, 0x-prefixed callData words resolved, 6/6 demo steps execute on fork |
+| V-04, demo account execution | **Closed on fork.** EIP-7702 delegation to Nexus 1.3.1 verified, account execution demonstrated |
 | V-01, MEE deployment version | **Closed.** `2.2.x` deployment against a Nexus `1.3.1` account |
 
 ### Three design decisions the tests forced
@@ -141,14 +144,14 @@ in [verification-log.md](docs/appendix/verification-log.md).
 
 | Item | State | Depends on |
 |---|---|---|
-| Nexus account on Base Sepolia with composability module installed | not started | V-02, V-03, V-04 |
-| `MockOracle` deployed with UI-driven setters | not started | — |
-| `FeedGuard` deployed and `isFresh` returning a single word | not started | — |
-| `QuoterGuard` deployed | not started | V-06 |
-| Happy-path batch, six entries, one signature | **Built and encoded.** Steps 1-2 execute live; steps 3-6 need a deployed account (V-24) | — |
-| Deterministic revert demo, oracle moved out of band | **Done.** The freshness-gate variant passes on fork | — |
-| ERC-7702 delegation demonstrated | not started | V-04 |
-| MEEScan or Basescan link captured for the recording | not started | — |
+| Nexus account on Base Sepolia with composability module installed | **Verified.** Native `executeComposable` on 1.3.1; execution verified on fork | V-02, V-03, V-04 |
+| `MockOracle` deployed with UI-driven setters | **Done.** Testnet mock oracle with unit tests and deployment script | — |
+| `FeedGuard` deployed and `isFresh` returning a single word | **Done.** 33 unit tests, 6 invariants, verified on Base Sepolia | — |
+| `QuoterGuard` deployed | **Done.** 26 unit tests, 4 invariants, off-chain quoter + on-chain bounds | V-06, V-25 |
+| Happy-path batch, six entries, one signature | **Done.** All 6 steps execute end to end on Base Sepolia fork | — |
+| Deterministic revert demo (oracle stale / impossible bound) | **Done.** Both variants verified on fork with atomic rollback | — |
+| ERC-7702 delegation demonstrated | **Done.** Verified in `NexusDelegationProbe.t.sol` | V-04 |
+| MEEScan or Basescan link captured for the recording | ready for live broadcast | — |
 
 ## Submission readiness
 

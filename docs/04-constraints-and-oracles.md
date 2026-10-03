@@ -425,12 +425,18 @@ reserves.
 | Multi-step flow where a later step must size itself from an earlier quote | Option B |
 | Anything a judge will probe on "is the bound real" | Show both, explain the trade-off |
 
-**Implemented with one change.** `minAmountOut` drops the `router` argument, because it was unused.
-The implemented signature is:
+**Implemented with two entry points.** `minAmountOut` drops the unused `router` argument. The
+companion `requireMinAmountOut` checks that the computed bound meets a signed minimum floor `minExpectedOut`
+(denominated in `tokenOut` decimals, avoiding token unit mismatches across pairs like USDC/WETH):
 
 ```solidity
 function minAmountOut(address quoter, address tokenIn, address tokenOut,
                       uint256 amountIn, uint24 fee, uint256 slippageBps)
+    external view returns (uint256 minOut);
+
+function requireMinAmountOut(address quoter, address tokenIn, address tokenOut,
+                             uint256 amountIn, uint24 fee, uint256 slippageBps,
+                             uint256 minExpectedOut)
     external view returns (uint256 minOut);
 ```
 
@@ -444,7 +450,9 @@ amount * n / 10_000  ==  (amount / 10_000) * n  +  (amount % 10_000) * n / 10_00
 
 Exact, because the floor distributes over the decomposition, and bounded, because `q * n < amount` and
 `r * n < 10^8`. See `_scaleByBps`. A reverting quoter is also wrapped into a legible `ZeroQuote` rather
-than bubbling someone else's revert string.
+than bubbling someone else's revert string. Per ADR-0006, quotes against live Uniswap pools are computed
+off-chain via `eth_call` (since `IUniswapV3Pool.swap` emits `Swap` and reverts in on-chain `STATICCALL`),
+and enforced on-chain through signed bounds and balance gates.
 
 ## Staleness and manipulation are different problems
 

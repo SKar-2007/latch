@@ -87,19 +87,21 @@ contract QuoterHandler is Test {
     function fuzzBothFormsAgree(uint256 seed) external {
         uint256 amountIn = pickAmount(seed);
         uint256 bps = pickBps(seed);
+        uint256 minFloor = pickAmount(seed >> 32);
 
         quoter.setAmountOut(amountIn);
 
         try guard.minAmountOut(address(quoter), TOKEN_A, TOKEN_B, amountIn, FEE, bps) returns (uint256 a) {
-            try guard.requireMinAmountOut(address(quoter), TOKEN_A, TOKEN_B, amountIn, FEE, bps) returns (uint256 b) {
+            try guard.requireMinAmountOut(address(quoter), TOKEN_A, TOKEN_B, amountIn, FEE, bps, minFloor) returns (uint256 b) {
                 assertEq(a, b, "minAmountOut and requireMinAmountOut disagreed");
+                assertGe(b, minFloor, "requireMinAmountOut succeeded below floor");
             } catch {
-                // Only legitimate reason to differ: requireMinAmountOut adds the amountIn floor.
-                assertLt(a, amountIn, "requireMinAmountOut may only revert once the bound is below amountIn");
+                // Only legitimate reason to differ: minFloor is above the calculated bound a.
+                assertLt(a, minFloor, "requireMinAmountOut may only revert once the bound is below minFloor");
             }
         } catch {
             // minAmountOut failed; requireMinAmountOut must fail too.
-            try guard.requireMinAmountOut(address(quoter), TOKEN_A, TOKEN_B, amountIn, FEE, bps) returns (uint256) {
+            try guard.requireMinAmountOut(address(quoter), TOKEN_A, TOKEN_B, amountIn, FEE, bps, minFloor) returns (uint256) {
                 revert("requireMinAmountOut succeeded where minAmountOut reverted");
             } catch {
                 // Expected.
