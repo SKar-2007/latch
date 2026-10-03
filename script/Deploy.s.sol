@@ -21,6 +21,12 @@ contract Deploy is Script {
     address constant COMPOSABLE_STORAGE = 0x00008211dea1Aca67ac55fc44AE3bF88CF41281d;
     address constant NEXUS_1_3_1 = 0x0000000020fe2F30453074aD916eDeB653eC7E9D;
 
+    /// @dev What `accountId()` must return for the pinned address to be the build we verified.
+    string constant EXPECTED_ACCOUNT_ID = "biconomy.nexus.1.3.1";
+
+    /// @dev `executeComposable(ComposableExecution[])`, the capability the demo actually needs.
+    bytes4 constant EXECUTE_COMPOSABLE_SELECTOR = 0x7eba07b8;
+
     function run() external {
         uint256 pk = vm.envUint("DEPLOYER_KEY");
         address deployer = vm.addr(pk);
@@ -37,8 +43,24 @@ contract Deploy is Script {
         // The account that will run batches must itself support composable execution.
         // The address Biconomy documents is a 1.2.0 build without it. See verification-log V-04.
         (bool ok, bytes memory ret) = NEXUS_1_3_1.staticcall(abi.encodeWithSignature("accountId()"));
-        require(ok && ret.length >= 32, "Nexus 1.3.1 not deployed");
-        console.log("Nexus accountId:", _decodeString(ret));
+        require(ok && ret.length >= 96, "Nexus 1.3.1 not deployed");
+
+        // Assert the identity rather than logging it. A pre-flight that reports "Nexus 1.3.1 OK" and
+        // then prints an empty id is worse than no pre-flight, because the log line is what a reader
+        // trusts. `supportsExecutionMode` cannot be used for this: it returns true on the 1.2.0 build
+        // too. See verification-log V-19.
+        // `abi.decode`, not a hand-rolled string reader. This file had one, and it was wrong twice
+        // over: it read words 0 and 1 as offset and length when word 0 is the `bytes memory` length,
+        // and it then pointed `src` at the string's length word rather than its data. Both bugs
+        // produced the same symptom -- an empty string and a "successful" pre-flight -- which is the
+        // worst possible outcome for the one check that must never lie.
+        string memory accountId = abi.decode(ret, (string));
+        require(_eq(accountId, EXPECTED_ACCOUNT_ID), "unexpected account build at the pinned address");
+        console.log("Nexus accountId:", accountId);
+
+        // And assert the capability that actually matters, rather than inferring it from the address.
+        bytes memory code = NEXUS_1_3_1.code;
+        require(_contains(code, EXECUTE_COMPOSABLE_SELECTOR), "account cannot run a composable batch");
 
         vm.startBroadcast(pk);
 
@@ -68,26 +90,33 @@ contract Deploy is Script {
     }
 
     /// @dev Minimal ABI string reader. accountId() returns a dynamic string.
-    function _decodeString(bytes memory encoded) private pure returns (string memory out) {
-        if (encoded.length < 64) return "";
+    /// @dev Byte equality for strings. `keccak256` on the raw bytes, so no import is needed.
+    function _eq(string memory a, string memory b) private pure returns (bool) {
+        return keccak256(bytes(a)) == keccak256(bytes(b));
+    }
 
-        uint256 offset;
-        uint256 length;
-        assembly {
-            offset := mload(encoded)
-            length := mload(add(encoded, 0x20))
-        }
-        if (length == 0 || offset + 32 + length > encoded.length) return "";
+    /// @dev Substring search over a hex string, lowercased, for a 4-byte selector.
+    function _contains(bytes memory haystack, bytes4 needle) private pure returns (bool) {
+        bytes memory n = abi.encodePacked(needle);
+        if (n.length > haystack.length) return false;
 
-        out = new string(length);
-        assembly {
-            // Copy straight from the calldata-derived buffer into the string's bytes.
-            mstore(add(out, 0x20), length)
-            let src := add(add(encoded, 0x20), offset)
-            let dst := add(out, 0x20)
-            for { let i := 0 } lt(i, length) { i := add(i, 32) } {
-                mstore(add(dst, i), mload(add(src, i)))
+        // Lowercase both sides. `address.code` is checksummed hex, so a literal selector never
+        // matches it without this, and a silently-failing capability check is exactly what this
+        // function exists to prevent.
+        for (uint256 i; i <= haystack.length - n.length; i++) {
+            bool hit = true;
+            for (uint256 j; j < n.length; j++) {
+                if (_lower(haystack[i + j]) != _lower(n[j])) {
+                    hit = false;
+                    break;
+                }
             }
+            if (hit) return true;
         }
+        return false;
+    }
+
+    function _lower(bytes1 c) private pure returns (bytes1) {
+        return (c >= "A" && c <= "F") ? bytes1(uint8(c) + 32) : c;
     }
 }

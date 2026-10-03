@@ -113,7 +113,7 @@ contract against `main` is the mistake; the bytecode survey is the correction.
 
 | ID | Item | Level | Finding |
 |---|---|---|---|
-| **V-19** | `supportsExecutionMode(bytes32)` on deployed builds | `VERIFIED ABSENT` | Selector `0xd03c7914` appears in `main` but in none of the deployed Base Sepolia dispatchers. Do not use it as a capability probe here |
+| **V-19** | `supportsExecutionMode(bytes32)` as a capability probe | `VERIFIED UNUSABLE` | Selector `0xd03c7914` **is** deployed on both Nexus builds and returns `true` for every mode, including on the 1.2.0 build that has no `executeComposable`. Never use it as a probe: see below |
 | **V-20** | MEE version versus Nexus account version | `VERIFIED` | Different axes. The docs' `2.2.x` is the **MEE deployment** version. The **account** on Base Sepolia is Nexus `1.3.1`. Earlier drafts of this set conflated them |
 | **V-21** | Empty `STATIC_CALL` return routed into `VALUE` | `FOUND` | A `STATIC_CALL` fetcher whose target returns no data does not revert, so the fetch succeeds and the empty bytes are then routed into the `VALUE` return type. The observable result is an **empty revert with no error selector**. Real and reachable, but unclassifiable by a caller: there is nothing in the revert data to match against |
 | **V-22** | Absurd `returnValues` count in a capture | `FOUND` | A capture asking for more return words than the call actually produced ends in `Panic(uint256)` or an empty revert rather than `InsufficientReturnData` |
@@ -237,6 +237,39 @@ demo can compute a live slippage bound on this chain. Options, in order of prefe
 
 Option 2 is the one that preserves the property the project exists to demonstrate, and it is the
 reason this finding matters beyond the demo.
+
+## V-19, supportsExecutionMode is worse than absent
+
+**Corrected.** An earlier revision of this entry recorded the selector `0xd03c7914` as absent from
+every deployed Base Sepolia dispatcher, on the grounds that it appears only in `main`. Both halves of
+that were wrong. Re-checked against the chain:
+
+| Address | `supportsExecutionMode` in bytecode | `executeComposable` in bytecode |
+|---|---|---|
+| Nexus 1.3.1 `0x…7E9D` | **present** | present |
+| Nexus 1.2.0 (wrong build) `0x…23B03` | **present** | **absent** |
+| Composability module | absent | present |
+
+And it is not merely present but useless. `supportsExecutionMode(bytes32)` returns `true` for every
+mode tested, `0` through `3`, on **both** builds:
+
+```
+Nexus 1.3.1   mode 0 true   mode 1 true   mode 2 true   mode 3 true
+Nexus 1.2.0   mode 0 true   mode 1 true   mode 2 true   mode 3 true
+```
+
+So the conclusion survives — do not use it as a capability probe — but the reason is the opposite of
+what was recorded, and the new reason is worse.
+
+An absent selector fails loudly: the call reverts, which a client can handle. This one succeeds and
+lies. A client that trusted it would conclude the 1.2.0 account supports composable execution, sign a
+batch against it, and watch it fail on-chain. A probe that returns `true` for a capability the build
+does not have is more dangerous than no probe at all, because it converts an unknown into a false
+positive.
+
+The correct probe is `executeComposable(ComposableExecution[])` itself: selector `0x7eba07b8`, present
+on 1.3.1 and absent on 1.2.0. It is checked in the deploy script's pre-flight, which is why that
+script refuses the wrong build.
 
 ## V-24, the approve step does nothing visible
 
