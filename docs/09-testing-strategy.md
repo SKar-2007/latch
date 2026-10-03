@@ -240,6 +240,41 @@ expected observable.
 | Verify on the explorer | Six entries, gate events present |
 | Namespace check | Slot matches the off-chain computation |
 
+### As built
+
+`test/smoke/LiveSmoke.t.sol`, 13 tests, all against Base Sepolia at block `47_590_000`.
+
+Layer C proves the contracts behave. Layer D proves the *document* is true. Every other layer runs
+against mocks, so a wrong address in this repository would pass all 124 tests and still fail the demo.
+That is the specific failure this layer exists to catch, and it is why three of these tests assert
+things that look like defects:
+
+| Test | Asserts |
+|---|---|
+| `test_liveFeedSatisfiesTheGuardsOwnConditions` | The live ETH/USD round satisfies every condition the guard checks, and pins the round's timestamp and age so the other tests cannot drift onto different data |
+| `test_isFreshReturnsOneOnTheLiveEthUsdFeed` | The verdict is `1` |
+| `test_isFreshReturnsZeroWhenTheHeartbeatIsTighterThanTheFeedAge` | And `0` for a 30 s heartbeat against a 40 s-old feed, so the first result is not a constant |
+| `test_answerIfFreshReturnsExactlyOneWord` | The live return is 32 bytes |
+| `test_namespaceMatchesOffChainComputation` | The on-chain namespace matches the local derivation |
+| `test_engineResolvesALiveBatch` | A real `BALANCE` batch resolves to the true `balanceOf` |
+| `test_outOfBandBoundTripsConstraintNotMet` | A `GTE` bound no account could meet reverts with `ConstraintNotMet` |
+| `test_dexAddressesAreCrossConsistentAndLiquid` | V-06: the router points at the factory this repo names, and the pool has liquidity |
+| `test_aavePoolIsLiveAndProviderAgrees` | V-07: the provider's `getPool()` returns the pool this repo names |
+| `test_aaveListsWethButNotUsdc` | V-07's caveat: WETH is a market, USDC is not |
+| `test_baseSepoliaQuoterIsNotQuoterV2` | V-23 still holds: the documented address lacks the interface |
+| `test_quoterGuardCannotUseTheBaseSepoliaQuoterYet` | And the practical consequence for the guard |
+
+Two design notes.
+
+**A finding encoded as a test.** `test_baseSepoliaQuoterIsNotQuoterV2` fails if someone deploys a real
+`QuoterV2` at the documented address. That is the point. A finding recorded only in prose stops being
+true the moment the code changes, and the test's failure message says what to do about it.
+
+**Nothing is submitted.** Every test is read-only or a fork-local deployment, so the suite runs
+against a public endpoint with no credentials. It skips cleanly when `BASE_SEPOLIA_RPC_URL` is unset.
+
+Offline, `forge test` reports 106 passed and 2 skipped. With an endpoint, 137 passed.
+
 ## Coverage targets
 
 | Component | Line | Branch | Note |

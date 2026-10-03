@@ -174,10 +174,25 @@ Aave V3 *is* deployed on Base Sepolia, from the canonical `aave-address-book` en
 | `AaveOracle` | `0x943b0dE18d4abf4eF02A85912F8fc07684C141dF` | 2,663 B |
 | `PoolDataProvider` | `0xBc9f5b7E248451CdD7cA54e717a2BFe1F32b566b` | 7,436 B |
 
-**The caveat, and it changes the demo.** `getReservesList()` returns 32 markets. **WETH is one of
-them; USDC is not.** `getAToken(USDC)` reverts and `getReserveConfigurationMap(USDC)` reverts, while
+**The caveat, and it changes the demo.** `getReservesList()` returns **6** markets. **WETH is one of
+them; USDC is not.** `getAToken(USDC)` reverts and `getReserveData(USDC)` reverts, while
 `getReserveData(WETH)` on the Pool returns a populated record with non-zero liquidity index and
-current liquidity.
+current liquidity. The list is identical at the pinned block `47_590_000` and at `latest`.
+
+| # | Market |
+|---|---|
+| 1 | `0xba50cd2a20f6da35d788639e581bca8d0b5d4d5f` |
+| 2 | `0x0a215d8ba66387dca84b284d18c3b4ec3de6e54a` |
+| 3 | `0x54114591963cf60ef3aa63befd6ec263d98145a4` |
+| 4 | `0x4200000000000000000000000000000000000006` **WETH** |
+| 5 | `0xd171b9694f7a2597ed006d41f7509aad4b485c4b` |
+| 6 | `0x810d46f9a9027e28f9b01f75e2bdde839da61115` |
+
+An earlier reading of this call reported 32 markets. That was a decode error: a dynamic `address[]`
+is encoded as `[offset][length][elements]`, and reading word 0 as the length reads the offset, which
+happens to be `0x20`. The count of 6 was confirmed by decoding both words at two block heights.
+`test_aaveListsWethButNotUsdc` in `test/smoke/LiveSmoke.t.sol` now parses both words, so this
+particular mistake cannot recur silently.
 
 | Asset | Listed market | Supply step usable |
 |---|---|---|
