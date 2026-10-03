@@ -343,7 +343,7 @@ interface IDocumentedErrors {
 }
 
 interface IQuoterV2Probe {
-    function quoteExactInputSingle(address, address, uint256, uint24, uint160)
+    function quoteExactInputSingle(address, address, uint24, uint256, uint160)
         external
         returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate);
 }

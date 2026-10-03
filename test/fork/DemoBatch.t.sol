@@ -46,7 +46,8 @@ contract DemoBatchTest is Test {
     /// @dev Matches `FEED_GUARD` there too.
     address constant FEED_GUARD = 0x00000000000000000000000000000000000000AA;
 
-    uint256 constant AMOUNT_IN = 25_000_000; // 25 USDC
+    // 15 USDC, matching client/src/demoBatch.ts. Sized to fit inside a single 20 USDC faucet grant.
+    uint256 constant AMOUNT_IN = 15_000_000;
     uint256 constant MIN_AMOUNT_OUT = 1_000_000_000_000_000; // 0.001 WETH
 
     string constant FIXTURE = "client/test/fixtures/demo-batch.abi.json";

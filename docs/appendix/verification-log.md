@@ -238,6 +238,44 @@ demo can compute a live slippage bound on this chain. Options, in order of prefe
 Option 2 is the one that preserves the property the project exists to demonstrate, and it is the
 reason this finding matters beyond the demo.
 
+## V-25, Uniswap's Quoter cannot be reached from a view function
+
+Found while writing the test V-23 called for. `QuoterGuard._quote` reaches its quoter with a
+`staticcall`, and against Uniswap's real Quoter that fails on every chain:
+
+```
+StateChangeDuringStaticCall
+```
+
+Not a wrong address and not a wrong selector. `Quoter.quoteExactInputSingle` calls
+`IUniswapV3Pool.swap`, which emits a `Swap` event, and `LOG` is forbidden inside a static context.
+The same applies to `QuoterV2`, since it inherits the same body. Both quoters are therefore usable
+from `eth_call` and off-chain tooling only.
+
+Verified both directions on Base Sepolia against Uniswap's own bytecode, deployed from the pinned
+v3-periphery v1.0.0 tag:
+
+| Reach | Result |
+|---|---|
+| `CALL` | **0.095452706967269650 WETH** for 15 USDC against the fee-3000 pool |
+| `STATICCALL` | reverts, always |
+
+The tempting fix is to swap `staticcall` for `call`. That is worse than the bug. `QuoterGuard` takes
+the quoter address as an *argument*, so a `call` would hand an arbitrary caller-chosen contract the
+ability to mutate chain state in the middle of a function that is `view`, and to re-enter while it
+does. A quoter is a view surface by definition; letting one write is the vulnerability, not the fix.
+
+So the resolution is architectural, and it is the one this project already leans toward elsewhere:
+quote **off-chain**, where the discarded state change is harmless, and enforce the resulting bound
+**on-chain**. The demo already carries `amountOutMin` as a signed literal in the batch, so the bound
+is present in calldata; the guard's job is to enforce it, which needs no quoter at all. The quoter
+read is the redundant half.
+
+Until that split is made, `QuoterGuard` against a real Uniswap Quoter will keep reverting with
+`ZeroQuote`. That is recorded here rather than papered over, and
+`test_theGuardCannotReadLiveLiquidityAndThatIsDocumented` fails if the situation ever changes, so the
+constraint can be revisited when it is genuinely safe to.
+
 ## V-23, the documented QuoterV2 is not a QuoterV2
 
 **Corrected twice.** The entry previously recorded `0xC5290058841028F1614F3A6F0F5816cAd0df5E27` as
@@ -423,3 +461,4 @@ Selectors used in this round, computed locally and confirmed against the live co
 
 `isValidSignature(bytes32,bytes)` hashing to `0x1626ba7e` matches `ERC1271_MAGICVALUE` in Nexus's
 `Constants.sol`, which is an independent check that the selector computation was correct.
+| **V-25** | Reading Uniswap liquidity from `QuoterGuard` on-chain | `VERIFIED IMPOSSIBLE** | Uniswap's Quoter emits an event via `pool.swap`, so `STATICCALL` can never reach it. See below |

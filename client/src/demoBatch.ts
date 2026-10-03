@@ -68,8 +68,16 @@ export interface DemoBatchOptions {
   readonly swapCapture?: CaptureSpec;
 }
 
-/** 25 USDC. */
-export const DEFAULT_AMOUNT_IN = 25_000_000n;
+/**
+ * 15 USDC.
+ *
+ * Was 25. The Circle faucet grants 20 USDC to a Base Sepolia address, so a 25 USDC demo could not
+ * clear its own balance gate on a single grant -- it failed at step 2 for reasons that had nothing to
+ * do with the logic being demonstrated. 15 leaves headroom above the grant size and keeps the swap
+ * small enough that price impact stays negligible in a shallow testnet pool, which is what you want
+ * when the point of the step is the guard, not the fill.
+ */
+export const DEFAULT_AMOUNT_IN = 15_000_000n;
 /** 1200 seconds, per the demo script. */
 export const DEFAULT_HEARTBEAT = 1200n;
 

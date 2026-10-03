@@ -1,5 +1,15 @@
 [profile.default]
 src = "contracts"
+# Uniswap's periphery is pinned at v3-periphery v1.0.0, whose `Quoter` is `solc =0.7.6`. Forge
+# resolves that pragma to its own compiler, but 0.7.6 predates `cancun` and so cannot honour the
+# `evm_version` above. It is compiled against `berlin` -- the newest EVM version 0.7.6 accepts --
+# which is what Uniswap shipped against. Only `Quoter` is restricted; no other periphery file is
+# reachable from LATCH's source, and the path pin stops one being dragged in silently later.
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@uniswap/v3-core/=lib/v3-core/",
+  "@uniswap/v3-periphery/=lib/v3-periphery/",
+]
 out = "out"
 libs = ["lib"]
 test = "test"

@@ -225,7 +225,7 @@ contract SpyQuoter is IQuoterV2 {
     uint256 internal constant DEFAULT_FEE_OUT = 1000;
     uint256 internal constant OTHER_FEE_OUT = 777;
 
-    function quoteExactInputSingle(address, address, uint256, uint24 fee, uint160)
+    function quoteExactInputSingle(address, address, uint24 fee, uint256, uint160)
         external
         pure
         returns (uint256, uint160, uint32, uint256)
@@ -236,7 +236,7 @@ contract SpyQuoter is IQuoterV2 {
 
 /// @dev Reverts on every quote.
 contract AngryQuoter is IQuoterV2 {
-    function quoteExactInputSingle(address, address, uint256, uint24, uint160)
+    function quoteExactInputSingle(address, address, uint24, uint256, uint160)
         external
         pure
         returns (uint256, uint160, uint32, uint256)

@@ -20,7 +20,7 @@ contract MockQuoter is IQuoterV2 {
         _amountOut = amountOut;
     }
 
-    function quoteExactInputSingle(address, address, uint256, uint24, uint160)
+    function quoteExactInputSingle(address, address, uint24, uint256, uint160)
         external
         view
         returns (uint256 amountOut, uint160, uint32, uint256)

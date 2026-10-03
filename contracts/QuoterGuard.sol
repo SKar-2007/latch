@@ -26,7 +26,18 @@ import {IQuoterV2} from "./interfaces/IQuoterV2.sol";
  * 4. Reverts rather than returning a degenerate bound. A zero minimum would silently disable the
  *    slippage guard while the client still rendered a green tick.
  *
- * @dev Known limitation, stated plainly: a quoter view is not a guarantee. It reflects pool state at
+ * @dev Known limitation, stated plainly: this cannot read a live Uniswap Quoter. See V-25.
+ *
+ *      Uniswap's `Quoter` and `QuoterV2` reach the pool via `IUniswapV3Pool.swap`, which emits a
+ *      `Swap` event, and `LOG` is forbidden in a static context. Since this function is `view` and
+ *      so must use `STATICCALL`, no Uniswap quoter can ever be reached from here. Passing one
+ *      produces `ZeroQuote`, not a Uniswap revert, so the failure is legible.
+ *
+ *      Do not "fix" this by switching to `CALL`. The quoter is a caller-supplied argument, so that
+ *      would let an arbitrary contract mutate state and re-enter during a view call. Quote off-chain
+ *      and enforce the bound here instead; the batch already carries `amountOutMin`.
+ *
+ * @dev Separately, stated plainly: a quoter view is not a guarantee. It reflects pool state at
  *      the moment of the call. The swap that consumes the returned bound still clears against live
  *      reserves within the same transaction. This narrows the window; it does not close it. No
  *      constraint mechanism closes it.
@@ -139,7 +150,7 @@ contract QuoterGuard {
         // Call through a low-level staticcall so a reverting quoter surfaces as a legible
         // ZeroQuote rather than an opaque bubble-up from someone else's revert string.
         (bool ok, bytes memory ret) = quoter.staticcall(
-            abi.encodeCall(IQuoterV2.quoteExactInputSingle, (tokenIn, tokenOut, amountIn, fee, uint160(0)))
+            abi.encodeCall(IQuoterV2.quoteExactInputSingle, (tokenIn, tokenOut, fee, amountIn, uint160(0)))
         );
         if (!ok || ret.length < 32) revert ZeroQuote(tokenIn, tokenOut, amountIn, fee);
 
