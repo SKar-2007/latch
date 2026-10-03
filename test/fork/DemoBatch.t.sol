@@ -125,9 +125,7 @@ contract DemoBatchTest is Test {
         pre[1] = batch[1];
 
         vm.prank(address(account));
-        (bool ok,) = MODULE.call(
-            abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, pre)
-        );
+        (bool ok,) = MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, pre));
 
         assertTrue(ok, "the two assertion steps must resolve against the live engine");
     }
@@ -165,9 +163,7 @@ contract DemoBatchTest is Test {
         one[0] = batch[2];
 
         vm.prank(address(account));
-        (bool ok,) = MODULE.call(
-            abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, one)
-        );
+        (bool ok,) = MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, one));
 
         // Whether the module reports success or failure, the invariant that matters holds: nothing was
         // approved and nothing moved. A batch that fails loudly is debuggable; one that quietly
@@ -190,13 +186,12 @@ contract DemoBatchTest is Test {
      *      the heartbeat must stop it at step 1, with nothing after it executed.
      */
     function test_staleFeedStopsTheBatchAtTheFirstGate() public {
-        (, , , uint256 updatedAt,) = IAggregatorV3ForTest(FEED).latestRoundData();
+        (,,, uint256 updatedAt,) = IAggregatorV3ForTest(FEED).latestRoundData();
         vm.warp(updatedAt + 1201);
 
         vm.prank(address(account));
-        (bool ok,) = MODULE.call(
-            abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch)
-        );
+        (bool ok,) =
+            MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch));
 
         assertFalse(ok, "a stale feed must stop the batch");
         assertEq(IERC20(USDC).balanceOf(ACCOUNT), AMOUNT_IN, "and no USDC moved");
@@ -215,9 +210,8 @@ contract DemoBatchTest is Test {
 
     function _execute() private {
         vm.prank(address(account));
-        (bool ok, bytes memory ret) = MODULE.call(
-            abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch)
-        );
+        (bool ok, bytes memory ret) =
+            MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, batch));
         if (!ok) {
             emit log("batch reverted:");
             emit log_named_string("revert data", vm.toString(ret));
@@ -372,8 +366,7 @@ contract DemoBatchTest is Test {
 
     /// @dev Aave's WETH aToken on Base Sepolia, read from the pool rather than hardcoded.
     function AAVE_WETH_A_TOKEN() internal view returns (address) {
-        (bool ok, bytes memory ret) =
-            AAVE_POOL.staticcall(abi.encodeWithSignature("getReserveData(address)", WETH));
+        (bool ok, bytes memory ret) = AAVE_POOL.staticcall(abi.encodeWithSignature("getReserveData(address)", WETH));
         require(ok && ret.length >= 32 * 7, "getReserveData must be readable");
 
         bytes32 word6;

@@ -125,7 +125,7 @@ contract against `main` is the mistake; the bytecode survey is the correction.
 | V-01 | MEE version usable on Base Sepolia | MEE execution path | `createMeeClient` against Base Sepolia staging |
 | **V-06** | DEX router address on Base Sepolia | `VERIFIED` | See the DEX table below. Real liquidity confirmed |
 | **V-07** | Lending pool address on Base Sepolia | `VERIFIED, WITH A CAVEAT` | See the lending table below. WETH is a listed market; **USDC is not** |
-| **V-23** | The address Uniswap labels `QuoterV2` on Base Sepolia is not a `QuoterV2` | `FOUND` | See below. Blocks the live slippage bound |
+| **V-23** | Quoter for Base Sepolia | `VERIFIED ABSENT` | No deployed contract answers `quoteExactInputSingle`. Uniswap's docs list `0xC529…E27` as the Base Sepolia QuoterV2, but its bytecode is not a QuoterV2. See below |
 | **V-24** | The module will not execute composed calls for a codeless caller | `FOUND, CAUSE IDENTIFIED` | Not an encoding bug. Needs a deployed account (V-04). Blocks demo steps 3-6 |
 | V-10 | Enum ordering stable across MEE versions | Encoding correctness | Diff `ComposabilityDataTypes.sol` on upgrade |
 | V-17 | Storage address matches the SDK constant | Capture correctness | One-line comparison |
@@ -237,6 +237,41 @@ demo can compute a live slippage bound on this chain. Options, in order of prefe
 
 Option 2 is the one that preserves the property the project exists to demonstrate, and it is the
 reason this finding matters beyond the demo.
+
+## V-23, the documented QuoterV2 is not a QuoterV2
+
+**Corrected twice.** The entry previously recorded `0xC5290058841028F1614F3A6F0F5816cAd0df5E27` as
+"codeless". Both parts of that were wrong. It has 8,273 bytes of code, and Uniswap's own Base
+deployments page lists that address as the Base Sepolia **QuoterV2**.
+
+It is not one. Selectors, computed rather than recalled:
+
+| Selector | Function | Present in `0xC529…` |
+|---|---|---|
+| `0x1296323f` | `quoteExactInputSingle(address,address,uint256,uint24,uint160)` | **no** |
+| `0x9b5e78b7` | `quoteExactInput(bytes,uint256[])` | **no** |
+| `0xcdca1753` | `quoteExactInput(bytes,uint256)` — not a Uniswap signature | yes |
+
+So the only match is a function name Uniswap does not have, while both real entry points are absent.
+The EIP-1967 implementation slot is zero, so it is not a proxy pointing at the real thing, and 8,273
+bytes is roughly a third of the ~24 KB a genuine QuoterV2 occupies. Calling it reverts.
+
+Two corrections of method are worth more than the finding:
+
+An earlier revision of this log asserted that `quoteExactInput` had selector `0xcdca1753`. That
+selector was computed from `quoteExactInput(bytes,uint256)` — the wrong parameter type. The real
+signature takes `uint256[]`. A selector quoted from memory rather than `cast sig` is a guess wearing a
+hex literal's clothing, and it is what made this address look plausible in the first place.
+
+`grep` for a selector in `eth_getCode` output must lowercase the hex first. `cast code` returns
+checksummed hex, so a lowercase selector silently never matches, and the resulting "absent" reading is
+indistinguishable from a genuine absence. Both faults reported a false negative, and a false negative
+here is the dangerous direction: it made a live, reachable contract look like empty code.
+
+`IQuoterV2` in this repository declares `quoteExactInputSingle`, which no contract on Base Sepolia
+implements. Either the interface moves to the bytes API or LATCH deploys its own quoter. Until then
+`QuoterGuard` cannot read live liquidity, and the guard's own docstring already says a quoter view is
+not a guarantee anyway — so this is a real gap in the demo, not a cosmetic one.
 
 ## V-19, supportsExecutionMode is worse than absent
 
