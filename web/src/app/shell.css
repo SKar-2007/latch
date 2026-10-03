@@ -1,5 +1,50 @@
-/* App chrome: header, hero, two-column work area, footer.
-   Owned by Wave 1 seat A. */
+/*
+ * App chrome: skip link, header, hero, the numbered grid, the workbench, the limits band and the
+ * footer. Owned by Wave 1 seat A, together with `AppShell.tsx` and `src/app/sections/`.
+ *
+ * Every colour, size, space, border and shadow below resolves to a custom property declared in
+ * `src/styles/tokens.css`. There is no raw hex, no raw font size, no radius and no hand-written
+ * shadow in this file: the identity is a token contract, not a suggestion.
+ */
+
+/* ------------------------------------------------------------------ shell */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* --------------------------------------------------------------- skip link */
+
+/*
+ * Off-screen until it is focused, then a full brutalist block. Keyboard users reach the workbench
+ * without traversing the header, the hero and four explainer panels first.
+ */
+.skip-link {
+  position: fixed;
+  top: var(--s-2);
+  left: var(--s-4);
+  z-index: var(--z-toast);
+  padding: var(--s-3) var(--s-5);
+  border: var(--bw) solid var(--c-ink);
+  background: var(--c-acid);
+  color: var(--c-ink);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(calc(-100% - var(--s-4)));
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* ----------------------------------------------------------------- header */
 
 .app-header {
   position: sticky;
@@ -13,7 +58,7 @@
   display: flex;
   align-items: center;
   gap: var(--s-4);
-  min-height: 68px;
+  min-height: var(--s-16);
   flex-wrap: wrap;
 }
 
@@ -59,17 +104,61 @@
   border-left: var(--bw-thin) solid var(--c-ink);
 }
 
+.app-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-left: auto;
+}
+
+.app-nav a {
+  padding: var(--s-2) var(--s-3);
+  border: var(--bw-thin) solid transparent;
+  color: var(--c-ink);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  border-color: var(--c-ink);
+  background: var(--c-acid);
+}
+
+.row.app-status {
+  gap: var(--s-2);
+}
+
+/* ------------------------------------------------------------------- main */
+
 .app-main {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: var(--s-8);
+  gap: var(--s-12);
   padding-top: var(--s-10);
   padding-bottom: var(--s-16);
 }
 
-.app-hero {
+/* Shared three-row section header: eyebrow, headline, content. */
+.app-section__head {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-bottom: var(--s-6);
+}
+
+/* ------------------------------------------------------------------- hero */
+
+.app-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--s-4);
   max-width: 780px;
 }
@@ -84,17 +173,76 @@
   color: var(--c-ink-soft);
 }
 
-.app-grid {
+.row.app-actions {
+  gap: var(--s-4);
+  margin-top: var(--s-2);
+}
+
+/* ------------------------------------------------------------ how it works */
+
+.app-steps {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-6);
-  align-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-step {
+  display: flex;
+  min-width: 0;
+}
+
+.app-step__panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.app-step__panel .ui-panel__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.app-step__num {
+  font-family: var(--font-display);
+  font-size: var(--t-5xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--c-latch);
+}
+
+.app-step__panel h3 {
+  font-size: var(--t-lg);
+}
+
+.app-step__panel p {
+  color: var(--c-ink-soft);
+}
+
+/* The four-across reading of the grid is the loudest band on the page. */
+@media (min-width: 1100px) {
+  .app-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* -------------------------------------------------------------- workbench */
+
+.app-workbench:focus {
+  outline: var(--bw) solid var(--c-latch);
+  outline-offset: calc(-1 * var(--bw));
 }
 
 .app-notice {
   display: flex;
   align-items: center;
   gap: var(--s-3);
+  margin-bottom: var(--s-6);
   padding: var(--s-3) var(--s-4);
   border: var(--bw) solid var(--c-ink);
   background: var(--c-block-wash);
@@ -107,18 +255,75 @@
   color: var(--c-block);
 }
 
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--s-6);
+  align-items: start;
+}
+
 .app-col {
   min-width: 0;
 }
 
-@media (max-width: 900px) {
-  .app-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .app-tagline {
-    display: none;
-  }
+/* ----------------------------------------------------------------- limits */
+
+.app-limits {
+  border-top: var(--bw) solid var(--c-ink);
+  border-bottom: var(--bw) solid var(--c-ink);
+  background: var(--c-surface-sunken);
 }
+
+/* Compound selector so the band's breathing room wins over `.page`'s shorthand. */
+.page.app-limits__inner {
+  padding-top: var(--s-12);
+  padding-bottom: var(--s-12);
+}
+
+.app-limits__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-limits__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-5);
+  border: var(--bw) solid var(--c-ink);
+  background: var(--c-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-limits__item strong {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-tight);
+  text-transform: uppercase;
+}
+
+.app-limits__item p {
+  color: var(--c-ink-soft);
+}
+
+.app-limits__close {
+  margin-top: var(--s-6);
+  font-size: var(--t-sm);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+/* ----------------------------------------------------------------- footer */
 
 .app-footer {
   border-top: var(--bw) solid var(--c-ink);
@@ -131,6 +336,65 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  min-height: 72px;
+  min-height: var(--s-16);
   flex-wrap: wrap;
+}
+
+.row.app-footer__id {
+  gap: var(--s-4);
+}
+
+.app-footer__nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+
+/* The band is inverted, so the link is its own signal: an underline against the dark field, and
+   the acid accent on the states that invite a click. */
+.app-footer__link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: var(--bw-thin);
+  text-underline-offset: 0.25em;
+}
+
+.app-footer__link:hover,
+.app-footer__link:focus-visible {
+  color: var(--c-acid);
+}
+
+.app-footer__brand {
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  letter-spacing: var(--ls-tight);
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.app-footer a {
+  color: var(--c-ink-inverted);
+}
+
+.app-footer a:hover {
+  background: var(--c-acid);
+  color: var(--c-ink);
+}
+
+/* ------------------------------------------------------------- responsive */
+
+@media (max-width: 900px) {
+  .app-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-limits__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-tagline {
+    display: none;
+  }
 }

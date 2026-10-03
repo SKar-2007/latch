@@ -142,7 +142,12 @@ renders as literal hex.
 |---|---|
 | `VITE_RPC_PRIMARY`, `VITE_RPC_SECONDARY`, `VITE_RPC_TERTIARY` | Public RPC endpoints. An unset slot is skipped, never substituted |
 | `VITE_FEED_GUARD`, `VITE_QUOTER_GUARD`, `VITE_FAILSAFE` | LATCH-owned deployments. Empty means **not configured** |
-| `VITE_CHAIN_ID` | `84532` |
+| `VITE_MOCK_ORACLE` | Demo oracle. Empty means the driver disables itself |
+| `VITE_EXPLORER_URL` | Explorer base URL for receipt links. Empty means the hash is printed to paste |
+
+`chainId` is not an environment variable: `84532` is a constant in `src/core/addresses.ts`, along
+with the composability module and composable storage. Configuration that lives in source is reviewable;
+configuration that lives in a deployment's `.env` is not.
 
 ## 8. Verification
 

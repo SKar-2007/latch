@@ -19,6 +19,21 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
   },
+  build: {
+    // Three vendors rather than one 553 kB blob. `viem` and React are the bulk of the bundle and
+    // neither changes when the app does, so splitting them keeps each chunk reviewable and keeps
+    // the browser from re-fetching 171 kB of libraries over an edited line of UI. There is no lazy
+    // boundary in the app today — everything is imported at first paint — so this is about chunk
+    // shape, not about deferring work.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom"],
+          viem: ["viem"],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",

@@ -5,73 +5,51 @@
  * here resolves to a custom property declared in `src/styles/tokens.css`, which is the single source
  * of truth. A hex literal in this file is a review failure, so there are none.
  *
- * The only layout values declared here are widths and gaps that have no token, because a one-column
- * stack does not need a design decision recorded for it.
+ * Only layout values that have no token live here: the fact rows of the session panel and the
+ * control row of the simulation panel are sizes specific to these two panels, not design decisions
+ * worth a token.
  */
 
-.w-panel {
-  display: block;
-}
-
-.w-session,
-.w-sim,
-.w-revert {
+/* Session facts: label left, value right, never wrapping into each other. */
+.w-facts {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
 }
 
-.w-row {
+.w-fact {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
+  justify-content: space-between;
+  gap: var(--s-3);
 }
 
-.w-actions {
+/* The absent value is written out, so it must read as words rather than as an empty hole. */
+.w-fact__empty {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  color: var(--c-ink-muted);
+}
+
+.w-actions,
+.w-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--s-3);
-  margin-block-start: var(--s-2);
 }
 
-.w-probe {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
+.w-busy {
+  color: var(--c-ink-muted);
+  font-size: var(--t-sm);
 }
 
-.w-note {
+/* Supporting text: the hint under a disabled control, and the raw revert line under a sentence. */
+.w-hint,
+.w-detail {
   margin: 0;
   color: var(--c-ink-muted);
   font-size: var(--t-sm);
   line-height: var(--lh-normal);
-}
-
-.w-gas {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-3);
-  background: var(--c-surface-sunken);
-  box-shadow: var(--shadow-sm);
-  border: var(--bw-thin) solid var(--c-ink);
-}
-
-.w-detail {
-  font-size: var(--t-sm);
-  color: var(--c-ink-muted);
-}
-
-.w-detail > summary {
-  cursor: pointer;
-  font-family: var(--font-mono);
-  letter-spacing: var(--ls-caps);
-  text-transform: uppercase;
-}
-
-.w-detail > summary:focus-visible {
-  outline: var(--bw) solid var(--c-acid);
-  outline-offset: var(--s-1);
 }

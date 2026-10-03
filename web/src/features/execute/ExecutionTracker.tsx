@@ -1,200 +1,200 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Chip, Eyebrow, MonoValue, Panel } from "@/components/ui";
-import { useApp, useDispatch } from "@/app/AppProvider";
-import { mapRevertReason } from "@/features/wallet";
-import { writeClient } from "@/core/chain";
-import type { Hex } from "@latch/client";
+import { Alert, Chip, Eyebrow, MonoValue, Panel } from "@/components/ui";
+import { useApp } from "@/app/AppProvider";
+import { formatDuration } from "@/core/format";
+import { activePath } from "./paths";
+import { safeBatchHash } from "./useExecution";
+import { useExecutionRecord, type IntentStatus } from "./executionStore";
 import "./execute.css";
 
 /**
- * Submission and receipt. Seat F.
+ * Submission, receipt and the intent trail. Seat F.
  *
- * Rule D9, and it is the rule this component is built around:
+ * The panel reads state; it performs no I/O. The receipt is awaited once, in `useExecution`, on the
+ * pinned write provider — this component never polls, never retries and never dispatches a
+ * submission of its own, because two components racing to report the same receipt is how a state
+ * machine ends up in a phase nobody put it in.
  *
- * > Never retry a **write** on timeout without first checking whether it landed. Reads fall back;
- * > writes do not.
+ * Two rules shape what it renders:
  *
- * The reason is that a write and a read fail differently. A read that times out did not happen, so
- * retrying it is free. A write that times out may well have been mined — the response was simply
- * lost — so retrying it can spend the same nonce twice, or execute a batch the user believes they
- * cancelled. A UI that offers "retry" on a write timeout without looking first is offering to do
- * exactly that.
+ * - **D9 / docs/07.** A write whose receipt never arrived is *unknown*, not failed, and the message
+ *   says to look before sending anything again. There is no "try again" button here: resending a
+ *   transaction that may already have landed is the double-submit hazard.
+ * - **D4.** Green is only legal after the chain produced an outcome, so the pass alert and the acid
+ *   chip appear on a receipt status and nothing else.
  *
- * So this component has three outcomes and never conflates them:
- *
- *   `unknown`  the submission's fate is not known. Look, do not retry.
- *   `landed`   a receipt was found.
- *   `reverted` a receipt was found and it failed. The batch unwound; nothing was committed.
- *
- * `unknown` is not an error state to be styled away. It is the honest answer, and it is the only one
- * of the three that warrants a "check again" button rather than a "try again" one.
+ * The EIP-712 intent is reported as presentation and bookkeeping — signed, rejected or not
+ * requested, with the `validUntil` it carried — and never as the thing that authorised anything.
  */
 
-/** How long to keep asking before saying `unknown` rather than appearing to hang. */
-const CONFIRMATION_ATTEMPTS = 6;
-const CONFIRMATION_INTERVAL_MS = 2_500;
-
 export interface ExecutionTrackerProps {
-  /** Overridable so a build with a different transport can supply its own reader. */
-  readonly confirm?: (hash: Hex) => Promise<"success" | "reverted" | "unknown">;
+  /** Merged into the panel's class list. The tracker takes no other inputs. */
+  readonly className?: string;
 }
 
-export function ExecutionTracker({ confirm = confirmByReceipt }: ExecutionTrackerProps = {}) {
-  const { phase, txHash, receiptStatus, error, calls } = useApp();
-  const dispatch = useDispatch();
-  const [fate, setFate] = useState<"success" | "reverted" | "unknown">(
-    receiptStatus ?? "unknown",
-  );
-  const [checking, setChecking] = useState(false);
-  const [attempts, setAttempts] = useState(0);
+const INTENT_LABEL: Record<IntentStatus, string> = {
+  "not-requested": "not requested",
+  awaiting: "awaiting signature",
+  signed: "signed",
+  rejected: "rejected",
+};
 
-  // A new hash restarts the search. Keyed on the hash so a receipt for a previous submission can
-  // never be shown against the current one.
-  useEffect(() => {
-    if (txHash === null) return;
-    let cancelled = false;
-    setFate("unknown");
-    setAttempts(0);
+function explorerBase(): string | null {
+  const raw: unknown = import.meta.env.VITE_EXPLORER_URL;
+  return typeof raw === "string" && /^https?:\/\//.test(raw) ? raw.replace(/\/+$/, "") : null;
+}
 
-    const search = async () => {
-      for (let attempt = 0; attempt < CONFIRMATION_ATTEMPTS; attempt += 1) {
-        if (cancelled) return;
-        setChecking(true);
-        const result = await confirm(txHash);
-        if (cancelled) return;
-        setAttempts(attempt + 1);
-        if (result !== "unknown") {
-          setFate(result);
-          setChecking(false);
-          dispatch({ type: "submit/receipt", status: result });
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, CONFIRMATION_INTERVAL_MS));
-      }
-      if (!cancelled) {
-        setChecking(false);
-        // Still unknown after every attempt. Say so rather than implying it failed: it may be pending,
-        // and a pending transaction has not been rejected.
-        setFate("unknown");
-      }
-    };
+export function ExecutionTracker({ className }: ExecutionTrackerProps = {}) {
+  const { phase, txHash, receiptStatus, error, calls, simulation } = useApp();
+  const record = useExecutionRecord();
+  const path = activePath;
 
-    void search();
-    return () => {
-      cancelled = true;
-    };
-    // `confirm` is stable per mount by contract of the default parameter.
-  }, [txHash, confirm, dispatch]);
+  // A signature describes one batch. If the batch on screen is not that batch, the record is not
+  // evidence of anything the user is looking at, and it is reported as not requested rather than
+  // quietly carried over.
+  const currentHash = safeBatchHash(calls);
+  const forThisBatch = record.batchHash !== null && currentHash !== null && record.batchHash === currentHash;
+  const intentStatus: IntentStatus = forThisBatch ? record.intentStatus : "not-requested";
+  const superseded = record.intentStatus !== "not-requested" && !forThisBatch;
 
-  const recheck = useCallback(async () => {
-    if (txHash === null) return;
-    setChecking(true);
-    const result = await confirm(txHash);
-    setChecking(false);
-    setFate(result);
-    if (result !== "unknown") dispatch({ type: "submit/receipt", status: result });
-  }, [txHash, confirm, dispatch]);
-
-  if (txHash === null && error === null) return null;
-
-  /**
-   * The revert notice is scoped to a submission.
-   *
-   * Any `error` in state used to render here, including errors that have nothing to do with signing
-   * — a wallet refusal, a missing configuration. That made the tracker claim to be reporting on a
-   * transaction that was never sent, and it announced a second `role="alert"` alongside whatever the
-   * real source of the error already announced. A submission report is scoped to a submission.
-   */
-  const mapped = txHash !== null && error !== null ? mapRevertReason(error.message) : null;
+  const happened = whatHappened(phase, receiptStatus, error, txHash);
+  const explorer = explorerBase();
 
   return (
     <Panel
       title="Execution"
-      tone={fate === "success" ? "acid" : "default"}
-      aside={<FateChip fate={fate} />}
-      className="f-panel"
+      tone={receiptStatus === "success" ? "acid" : "default"}
+      aside={<Chip tone={receiptStatus === "success" ? "acid" : "sunken"}>{receiptStatus ?? phase}</Chip>}
+      className={["f-panel", className ?? ""].filter(Boolean).join(" ")}
+      data-testid="execution-tracker"
     >
       <div className="f-exec">
-        {txHash === null ? (
-          <p className="f-note">Nothing has been submitted yet.</p>
-        ) : (
-          <div className="f-hash">
-            <Eyebrow tone="muted">Transaction</Eyebrow>
-            <MonoValue value={txHash} truncate={false} />
+        <section className="f-block">
+          <Eyebrow tone="muted">Execution path</Eyebrow>
+          <div className="f-row">
+            <Chip tone="ink">{path.id}</Chip>
+            <span className="f-path__label">{path.label}</span>
+            <Chip tone={path.sponsored ? "sky" : "sunken"}>
+              {path.sponsored ? "sponsored" : "not sponsored"}
+            </Chip>
           </div>
-        )}
+          <p className="f-note">{path.description}</p>
+        </section>
 
-        {fate === "unknown" && txHash !== null && (
-          <Alert tone="warn" title="Not known whether this landed">
-            The submission did not report a receipt after {attempts} {attempts === 1 ? "check" : "checks"}.
-            That is not a failure: the transaction may be pending, or the node may simply not have it
-            yet. <strong>Do not resubmit.</strong> Resubmitting a write that already landed can spend
-            the same nonce twice. Check again, or look the hash up on the explorer.
-          </Alert>
-        )}
+        <section className="f-block">
+          <Eyebrow tone="muted">EIP-712 intent</Eyebrow>
+          <div className="f-row">
+            <Chip tone={intentStatus === "signed" ? "ink" : "sunken"}>{INTENT_LABEL[intentStatus]}</Chip>
+            {record.validUntil !== null && forThisBatch && (
+              <Chip tone="ink">
+                validUntil {record.validUntil} · {formatDuration(record.validUntil - Math.floor(Date.now() / 1000))} left
+              </Chip>
+            )}
+          </div>
+          {superseded && (
+            <p className="f-note">
+              A signature exists for an earlier version of this batch. It does not describe what is on
+              screen, so it is not offered as one.
+            </p>
+          )}
+          <p className="f-note">
+            Presentation, expiry and replay scoping only. Nothing on-chain reads this signature; the
+            transaction signature is the trust root.
+          </p>
+        </section>
 
-        {fate === "reverted" && (
-          <Alert tone="block" title="Reverted">
-            The transaction was mined and failed, so the whole batch unwound and nothing was committed.
-            That is the atomicity guarantee holding, not breaking.
-          </Alert>
-        )}
+        <section className="f-block">
+          <Eyebrow tone="muted">Transaction</Eyebrow>
+          {txHash === null ? (
+            <p className="f-note">Nothing has been submitted yet.</p>
+          ) : (
+            <>
+              <MonoValue value={txHash} truncate={false} />
+              {explorer === null ? (
+                <p className="f-note">
+                  Block explorer link unavailable — no explorer base URL is configured. Paste the hash
+                  into an explorer by hand if you need to.
+                </p>
+              ) : (
+                <a className="f-link" href={`${explorer}/tx/${txHash}`}>
+                  View on explorer
+                </a>
+              )}
+            </>
+          )}
+        </section>
 
-        {fate === "success" && (
+        <section className="f-block">
+          <Eyebrow tone="muted">Receipt</Eyebrow>
+          <div className="f-row">
+            <Chip tone={receiptStatus === "success" ? "acid" : "sunken"}>
+              {receiptStatus ?? "no receipt yet"}
+            </Chip>
+            {record.gasUsed != null && (
+              <Chip tone="ink">
+                gas used <span className="ui-mono">{record.gasUsed.toString()}</span>
+              </Chip>
+            )}
+            {simulation?.gasUsed != null && record.gasUsed != null && (
+              <Chip tone="sunken">
+                simulated <span className="ui-mono">{simulation.gasUsed.toString()}</span>
+              </Chip>
+            )}
+          </div>
+          {record.gasUsed == null && (
+            <p className="f-note">
+              No gas observed yet. A number appears only once a receipt reports one — never as an
+              estimate dressed up as a result.
+            </p>
+          )}
+        </section>
+
+        {receiptStatus === "success" && (
           <Alert tone="pass" title="Confirmed">
-            The receipt reports success. Every gate the batch carried resolved on-chain.
+            The receipt reports success: every gate the batch carried was evaluated on-chain, and the
+            batch executed in one call frame.
           </Alert>
         )}
 
-        {mapped !== null && (
-          <div className="f-revert">
-            <Alert tone="block" title="Submission reported a problem">
-              {mapped.message}
-            </Alert>
-            <details className="f-detail">
-              <summary>Raw detail</summary>
-              <MonoValue value={mapped.revertReason} truncate={false} muted />
-            </details>
-          </div>
+        {receiptStatus === "reverted" && (
+          <Alert tone="block" title="Reverted">
+            The transaction was mined and failed, so the whole batch unwound and nothing was
+            committed — no approval, no transfer, no partial outcome. Run the simulation again to see
+            which bound refused.
+          </Alert>
         )}
 
-        <div className="f-row">
-          <Chip tone="ink">{phase}</Chip>
-          {calls.length > 0 && <Chip tone="sky">{calls.length} entries</Chip>}
-          {fate === "unknown" && txHash !== null && (
-            <Button variant="ghost" size="sm" onClick={() => void recheck()} disabled={checking}>
-              {checking ? "Checking…" : "Check again"}
-            </Button>
-          )}
-          {fate === "unknown" && txHash !== null && (
-            <span className="f-note">Checking never resubmits.</span>
-          )}
-        </div>
+        <section className="f-block">
+          <Eyebrow tone="muted">What happened</Eyebrow>
+          <p className="f-happened">{happened}</p>
+        </section>
       </div>
     </Panel>
   );
 }
 
-function FateChip({ fate }: { readonly fate: "success" | "reverted" | "unknown" }) {
-  if (fate === "success") return <Chip tone="acid">confirmed</Chip>;
-  if (fate === "reverted") return <Chip tone="sunken">reverted</Chip>;
-  return <Chip tone="sunken">unknown</Chip>;
-}
-
 /**
- * Look the hash up.
+ * One sentence, driven by the receipt first and the error second.
  *
- * Reads the receipt through `writeClient` rather than `readClient`, and that is deliberate rather than
- * an oversight. `core/chain.ts` splits the two so that reads can fail over between providers; a
- * receipt lookup after a write timeout is exactly the case where provider rotation is *not* safe,
- * because a fallback endpoint that has not yet seen the transaction would report "not found" and be
- * indistinguishable from a transaction that never landed. One provider, asked twice.
+ * A receipt is a fact the chain produced; an error is a fact this client observed. When both exist
+ * the receipt wins, because the whole point of the tracker is to report what the chain did.
  */
-async function confirmByReceipt(hash: Hex): Promise<"success" | "reverted" | "unknown"> {
-  try {
-    const receipt = await writeClient.waitForTransactionReceipt({ hash, timeout: 1, retryCount: 0 });
-    return receipt.status === "success" ? "success" : "reverted";
-  } catch {
-    return "unknown";
+function whatHappened(
+  phase: string,
+  receiptStatus: "success" | "reverted" | null,
+  error: { readonly code: string; readonly message: string } | null,
+  txHash: `0x${string}` | null,
+): string {
+  if (receiptStatus === "success") {
+    return "The batch was mined successfully. Every value the plan left open was resolved on-chain, and every gate either passed or the batch would have reverted.";
   }
+  if (receiptStatus === "reverted") {
+    return "The batch was mined and reverted, so it committed nothing. The bounds on screen are the bounds that refused it.";
+  }
+  if (error !== null) return error.message;
+  if (receiptStatus === null && txHash !== null) {
+    return "Submitted. The receipt is being awaited on the pinned write provider; it is checked, never resent.";
+  }
+  if (phase === "awaitingSignature") return "Waiting for the wallet to answer the signature request.";
+  if (phase === "simulating") return "Simulating. Signing opens when the chain has answered.";
+  return "Nothing has been submitted yet.";
 }

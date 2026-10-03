@@ -33,12 +33,12 @@
 
 .ui-btn:hover:not(:disabled) {
   transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 var(--c-ink);
+  box-shadow: var(--shadow-hover);
 }
 
 .ui-btn:active:not(:disabled) {
   transform: translate(4px, 4px);
-  box-shadow: 0 0 0 var(--c-ink);
+  box-shadow: var(--shadow-press);
 }
 
 .ui-btn:disabled {
@@ -79,7 +79,7 @@
 .ui-btn--sm {
   padding: var(--s-1) var(--s-3);
   font-size: var(--t-xs);
-  box-shadow: 3px 3px 0 var(--c-ink);
+  box-shadow: var(--shadow-xs);
 }
 
 .ui-btn--lg {

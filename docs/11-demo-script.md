@@ -45,9 +45,9 @@ Point at the rendered plan:
 
 ```
  1  [assert]  FeedGuard.isFresh(ETH/USD, 1200) == 1
- 2  [assert]  USDC.balanceOf(account) >= 25.00
+ 2  [assert]  USDC.balanceOf(account) >= 15.00
  3  [call]    USDC.approve(router, <live balance>)
- 4  [call]    router.exactInputSingle(USDC -> WETH, 25.00, <min out>, account)
+ 4  [call]    router.exactInputSingle(USDC -> WETH, 15.00, <min out>, account)
  5  [assert]  WETH.balanceOf(account) >= <min out>
  6  [call]    pool.supply(WETH, <live balance>, account, 0)
 ```

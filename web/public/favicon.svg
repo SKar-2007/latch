@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32" role="img" aria-label="LATCH">
+  <title>LATCH</title>
+  <rect width="64" height="64" fill="#FF4D2E"/>
+  <rect x="4" y="4" width="56" height="56" fill="none" stroke="#0B0B0B" stroke-width="8"/>
+  <path d="M33 18 H20 V46 H46" fill="none" stroke="#FFFDF7" stroke-width="10" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

@@ -1,0 +1,216 @@
+/*
+ * Intent builder styling. Tokens only: every colour, size, border and shadow comes from
+ * src/styles/tokens.css. No hex, no raw font size, no radius.
+ */
+
+.b-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.b-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.b-route {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+}
+
+/* ------------------------------------------------------------------- route */
+
+.b-pair,
+.b-amount {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.b-pair__detail {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-sm);
+}
+
+.b-pair__arrow {
+  font-weight: var(--fw-bold);
+}
+
+/* ---------------------------------------------------------------- slippage */
+
+.b-slippage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.b-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--s-2);
+}
+
+.b-preset {
+  border: var(--bw) solid var(--c-ink);
+  background: var(--c-surface);
+  padding: var(--s-3);
+  transition: background var(--dur) var(--ease);
+}
+
+.b-preset--on {
+  background: var(--c-acid);
+  box-shadow: var(--shadow-sm);
+}
+
+.b-preset__value {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.b-preset__pct {
+  font-size: var(--t-lg);
+  font-weight: var(--fw-bold);
+}
+
+.b-preset__input {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  flex: none;
+  width: var(--s-5);
+  height: var(--s-5);
+  border: var(--bw-thin) solid var(--c-ink);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+
+.b-preset__input:checked {
+  background: var(--c-ink);
+}
+
+.b-implied {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  font-size: var(--t-sm);
+}
+
+.b-implied__note {
+  color: var(--c-ink-muted);
+}
+
+/* ------------------------------------------------------------------ bounds */
+
+.b-bounds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.b-slider,
+.b-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+}
+
+.b-slider__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--c-ink);
+}
+
+.b-stepper__select {
+  min-width: var(--s-16);
+}
+
+.b-readout {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: var(--t-sm);
+}
+
+.b-readout__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+/* ------------------------------------------------------------------ policy */
+
+.b-policy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.b-policy__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border: var(--bw) solid var(--c-ink);
+  background: var(--c-surface);
+  padding: var(--s-3);
+}
+
+.b-policy__row--skip {
+  background: var(--c-block-wash);
+}
+
+.b-policy__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.b-policy__seg,
+.b-policy__buttons,
+.b-policy__confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.b-policy__confirm {
+  margin-top: var(--s-2);
+}
+
+.b-policy__state {
+  margin: 0;
+  font-size: var(--t-xs);
+  color: var(--c-ink-soft);
+}
+
+/* ------------------------------------------------------------- build action */
+
+.b-build {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  border-top: var(--bw) solid var(--c-ink);
+  padding-top: var(--s-4);
+}
+
+.b-summary {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--c-ink-soft);
+}

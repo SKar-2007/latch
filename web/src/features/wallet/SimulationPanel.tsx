@@ -1,128 +1,82 @@
-import { Alert, Chip, Eyebrow, MonoValue, Panel } from "@/components/ui";
 import { useApp } from "@/app/AppProvider";
-import type { ComposableExecution, Constraint } from "@latch/client";
-import { formatSeconds } from "@/core/format";
-import { explainRevert, isActionable, type RevertExplanation } from "./revertReasons";
+import { Alert, Button, Chip, Panel } from "@/components/ui";
+import { CHAIN_NAME } from "@/core/addresses";
+import { Phase } from "@/app/state";
+import { useSimulation } from "./useSimulation";
 import "./wallet.css";
 
 /**
- * Simulation panel. Seat C.
+ * The panel that runs the batch before anyone signs it (docs/06, `<SimulationPanel>`).
  *
- * Three rules, and none of them is stylistic.
+ * Three rules, each of which is a way to lie if broken:
  *
- * **D7 — a revert reason is mapped to an actionable sentence.** The mapping lives in
- * `revertReasons.ts`. What arrives here is a sentence and, underneath it, the raw selector.
- *
- * **Gas is displayed as observed.** `eth_estimateGas` is a guess and `eth_call` does not report gas
- * at all, so a number that appears next to a simulation is one the chain actually charged. There is
- * no estimated figure anywhere in this panel, because an estimate next to a result reads as a result.
- *
- * **D3 — nothing here is presented as final.** A simulation is a rehearsal against current state. It
- * is labelled, the moment it was taken is shown, and the raw revert data is kept, because a
- * simulation that succeeded says nothing about what will happen when it is signed.
+ * - **D7.** A revert reason is mapped to an actionable sentence; the raw selector or reason is
+ *   shown underneath as detail and never in place of the sentence.
+ * - **D4.** Green (`Alert tone="pass"`) appears only after the chain has produced an outcome, so
+ *   nothing is green while the panel is idle or while the call is in flight.
+ * - **Gas is observed or absent.** A number appears only because a node returned one for this call;
+ *   an estimate that could not be taken leaves the line off rather than filled in.
  */
 export function SimulationPanel() {
-  const { phase, simulation, calls, bounds } = useApp();
+  const { phase, calls, simulation } = useApp();
+  const { running, canRun, run } = useSimulation();
 
-  if (simulation === null) {
-    return (
-      <Panel title="Simulation" tone="sunken">
-        <p className="w-note">
-          Not simulated. Run the simulation before signing — it is the only place the gates are
-          exercised without committing anything.
-        </p>
-      </Panel>
-    );
-  }
-
-  const gates = collectGates(calls);
-  const explanation = simulation.ok ? null : explain(simulation.revertReason, gates, bounds.slippageBps);
+  const hint =
+    calls.length === 0
+      ? "There is no batch to simulate yet."
+      : phase !== Phase.Previewing
+        ? "Simulation runs from the preview. Build the batch first."
+        : null;
 
   return (
     <Panel
       title="Simulation"
-      tone={simulation.ok ? "acid" : "default"}
-      aside={<Chip tone={simulation.ok ? "acid" : "sunken"}>{simulation.ok ? "passed" : "failed"}</Chip>}
-      className="w-panel"
+      tone={simulation?.ok === true ? "acid" : "default"}
+      aside={<Chip>{phase}</Chip>}
     >
-      <div className="w-sim">
-        {simulation.ok ? (
-          <Alert tone="pass" title="Rehearsed successfully">
-            Every gate resolved and the batch completed against current chain state. Nothing was
-            committed — this is what signing will attempt, not a receipt.
-          </Alert>
-        ) : (
-          explanation !== null && <RevertNotice explanation={explanation} />
-        )}
-
-        <div className="w-row">
-          <Chip tone="ink">simulated {new Date(simulation.at).toLocaleTimeString()}</Chip>
-          <Chip tone="ink">{phase}</Chip>
-          {gates.length > 0 && <Chip tone="sky">{gates.length} gates exercised</Chip>}
+      <div className="stack">
+        <div className="row w-controls">
+          <Button
+            variant="acid"
+            onClick={() => void run()}
+            disabled={!canRun}
+            aria-busy={running}
+            data-testid="run-simulation"
+          >
+            {running ? "Simulating…" : "Run simulation"}
+          </Button>
+          {running && (
+            <span className="w-busy" role="status">
+              Asking {CHAIN_NAME} to run the batch…
+            </span>
+          )}
         </div>
 
-        {simulation.gasUsed !== undefined && <GasRow gasUsed={simulation.gasUsed} />}
+        {hint !== null && !running && <p className="w-hint">{hint}</p>}
 
-        <p className="w-note">
-          A simulation reflects chain state at the moment it ran. The bounds you signed
-          (freshness {formatSeconds(bounds.maxStalenessSec)}) are what protect you between then and
-          execution.
-        </p>
+        {simulation === null ? (
+          !running && <p className="w-hint">Not simulated yet. Run it before signing.</p>
+        ) : (
+          <>
+            <Alert tone={simulation.ok ? "pass" : "block"}>
+              {simulation.message ?? (simulation.ok ? "Simulation succeeded." : "Simulation failed.")}
+            </Alert>
+
+            {!simulation.ok && simulation.revertReason !== undefined && (
+              <p className="w-detail">
+                raw reason: <span className="ui-mono">{simulation.revertReason}</span>
+              </p>
+            )}
+
+            {simulation.gasUsed !== undefined && (
+              <p className="w-detail">
+                gas observed:{" "}
+                <span className="ui-mono">{simulation.gasUsed.toString()}</span> (eth_estimateGas)
+              </p>
+            )}
+          </>
+        )}
       </div>
     </Panel>
   );
-}
-
-/**
- * Gas, as observed.
- *
- * The label says where the number came from, because a gas figure without a provenance reads as a
- * promise about the transaction that has not happened yet.
- */
-function GasRow({ gasUsed }: { readonly gasUsed: bigint }) {
-  return (
-    <div className="w-gas">
-      <Eyebrow tone="muted">Gas · observed</Eyebrow>
-      <MonoValue value={gasUsed.toLocaleString()} large />
-    </div>
-  );
-}
-
-function RevertNotice({ explanation }: { readonly explanation: RevertExplanation }) {
-  return (
-    <div className="w-revert">
-      <Alert tone={isActionable(explanation) ? "block" : "warn"} title={explanation.title}>
-        {explanation.detail}
-      </Alert>
-      {explanation.gate !== undefined && (
-        <p className="w-note ui-mono">gate: {explanation.gate}</p>
-      )}
-      <details className="w-detail">
-        <summary>Raw revert data</summary>
-        <MonoValue value={explanation.raw} truncate={false} muted />
-      </details>
-    </div>
-  );
-}
-
-function explain(
-  revertReason: string | undefined,
-  gates: readonly Constraint[],
-  slippageBps: number,
-): RevertExplanation {
-  return explainRevert(revertReason ?? "0x", {
-    ...(gates.length === 0 ? {} : { gates }),
-    slippageBps,
-  });
-}
-
-/**
- * Every gate in the batch, as constraints.
- *
- * `calls` is already the decoded `ComposableExecution[]` the reducer holds, so the gates are read
- * straight off it. Re-encoding the batch only to decode it again would be wasted work and would add a
- * place for the two representations to drift.
- */
-function collectGates(calls: readonly ComposableExecution[]): readonly Constraint[] {
-  return calls.flatMap((call) => call.inputParams.flatMap((param) => param.constraints));
 }
