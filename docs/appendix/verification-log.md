@@ -306,20 +306,51 @@ Three distinct blockers, each replacing the last:
 2. `MissingFallbackHandler(0x0)` then `NexusInitializationFailed()` (`0x315927c5`).
    `initNexusWithDefaultValidator` builds a zero `RegistryConfig` while the `withRegistry` modifier on
    the validator install requires one.
-3. **The deployed bootstrap's dispatcher does not match its published source.** This is the load-bearing
-   one. `_initializeAccount` does not take a bare bootstrap call: it reads `initData` by hand as
-   `[bootstrap address][offset][length][calldata]`, and passing just the calldata makes it read the
-   selector as an address. With that fixed, the delegatecall lands on the right contract and *still*
-   falls through to `MissingFallbackHandler`, because
-   `initNexusWithDefaultValidatorAndOtherModulesNoRegistry` computes to `0x41bede03` and that selector
-   is not in the deployed dispatcher, while `initNexusWithSingleValidator` (`0x6d583e36`) resolves to a
-   real function. The deployed contract is an older build than the source I read.
+3. **A one-word offset in the `initData` header, in this project's own code.** `Nexus._initializeAccount`
+   does not take a bare bootstrap call; it reads `initData` with hand-written assembly as
+   `[bootstrap][s][length][calldata]`, where `s` must be `0x60`. `abi.encode` cannot express that: it
+   reserves four head words and puts the dynamic offset at word 3, which lands the length at word 2 and
+   the payload one word *later* than the assembly reads. Packed explicitly, the bootstrap finally ran
+   -- gas went from 34k to 1.02e9, which is the only unambiguous signal here that real work happened.
 
-The selector set has to come from the deployed contract's verified ABI. Reading it off the repository
-is the same error as V-19 and V-23 one level up: a source that does not match the artifact, producing
-a false negative that looks like a pass. An earlier heuristic here made exactly that mistake -- it
-scraped every `PUSH4` constant from the first quarter of the bytecode and reported `0x41bede03` as
-present, which was a constant, not a dispatch entry.
+   `abi.encode` producing something that nearly works is the worst failure mode available: it typechecks,
+   it round-trips through `abi.decode`, and it is wrong.
+
+4. `MissingFallbackHandler(0x00000000)` is a red herring. An *empty* selector means the account received
+   a call with no calldata, which is `ProxyLib.deployProxy`'s `alreadyDeployed` branch:
+   `account.call{value: msg.value}("")`. A fixed salt plus a failed prior attempt leaves the proxy
+   deployed, so the next run takes that branch instead of initializing. The error blames the account's
+   fallback for something that has nothing to do with fallbacks. Fixed with a per-invocation salt.
+
+   An earlier conclusion in this log -- "the garbage function name in the trace proves the selector is
+   missing" -- was wrong on both counts. Foundry does not resolve selectors for delegatecalls, so the
+   mangled name means nothing.
+
+5. **Still open: inner error `0x1425ea42`**, wrapped in the proxy's `FailedInnerCall()`. Not present in
+   the bytecode of the Nexus implementation, the bootstrap, the K1 validator or the composability
+   module, and not among the 85 error definitions in `bcnmy/nexus` or `bcnmy/erc8211-contracts`, nor the
+   36 in `eth-infinitism/account-abstraction`. It comes from a contract none of those four sources
+   describe.
+
+### Identifying a deployed selector without its ABI
+
+An unknown selector on the bootstrap falls through to `MissingFallbackHandler(bytes4)`, whose selector is
+`0x08c63e27`. That makes the dispatcher directly probeable: a selector that yields `0x08c63e27` is absent,
+anything else is real. Confirmed present on the deployed bootstrap:
+
+| Selector | Function |
+|---|---|
+| `0x31025984` | `initNexusWithDefaultValidator(bytes)` |
+| `0x6d583e36` | `initNexusWithSingleValidator(address,bytes)` |
+| `0x10b7fca9` | `initNexusWithSingleValidatorNoRegistry(address,bytes)` |
+| `0x0b3dc354` | `getDefaultValidator()` |
+
+Confirmed absent: `initNexusWithDefaultValidatorNoRegistry(bytes)`.
+
+Separately, the selector set must not be read off the repository. The deployed bootstrap is an older
+build than `bcnmy/nexus@main`, which is the same source/artifact mismatch as V-19 and V-23 one level up.
+An earlier heuristic in this investigation made exactly that mistake -- it scraped every `PUSH4` constant
+from the first quarter of the bytecode and reported a selector as present that was merely a constant.
 
 ## V-27, V-24 was probably never about a codeless caller
 

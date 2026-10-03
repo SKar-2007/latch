@@ -62,7 +62,15 @@ contract NexusAccountFactoryLiveTest is Test {
     // Salted per block. A failed initialization still leaves the proxy deployed, and CREATE2 will not
     // redeploy at the same salt -- it returns the existing address untouched. A fixed salt would make
     // the second run silently test a half-built account.
-    bytes32 salt = keccak256(abi.encodePacked("latch-nexus", block.number));
+    /// @dev Unique per invocation.
+    ///
+    ///      `ProxyLib.deployProxy` branches on `alreadyDeployed = account.code.length > 0`, and the
+    ///      else branch is `account.call{value: msg.value}("")` -- a call with *empty* calldata. If an
+    ///      earlier attempt left the proxy deployed, that branch runs instead of initialization, the
+    ///      account's fallback rejects the empty selector, and the failure surfaces as
+    ///      `MissingFallbackHandler(0x00000000)`. That reads like a bug in the bootstrap call and is not
+    ///      one. A per-invocation salt makes the deployed branch unreachable.
+    bytes32 salt = keccak256(abi.encodePacked("latch-nexus", block.number, address(this), _nonce()));
 
     /// @dev ERC-4337 EntryPoint v0.7, as Nexus exposes it.
     address constant ENTRYPOINT = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
@@ -130,19 +138,26 @@ contract NexusAccountFactoryLiveTest is Test {
             new PreValidationHook[](0)
         );
 
-        // `Nexus._initializeAccount` does not take a bare bootstrap call. It reads, by hand:
+        // `Nexus._initializeAccount` does not take a bare bootstrap call. It reads `initData` by hand:
         //
-        //     bootstrap          := calldataload(initData.offset)
-        //     s                  := calldataload(initData.offset + 0x20)
-        //     bootstrapCall.off  := initData.offset + s + 0x20
-        //     bootstrapCall.len  := calldataload(initData.offset + s)
+        //     bootstrap          := calldataload(initData.offset)            // word 0
+        //     s                  := calldataload(initData.offset + 0x20)     // word 1
+        //     bootstrapCall.len  := calldataload(initData.offset + s)        // word s
+        //     bootstrapCall.off  := initData.offset + s + 0x20              // word s + 1
         //
-        // so `initData` must be `[bootstrap][offset][length][calldata]`. Passing just the calldata
-        // makes `bootstrap` read as the selector 0x31025984, the offset as the owner word, and the
-        // delegatecall lands on nothing. That produced `AccountNotInitialized()` with an empty inner
-        // trace: the account deployed, the bootstrap never ran, and the only visible error was the
-        // post-condition failing.
-        return abi.encode(BOOTSTRAP, uint256(0x40), uint256(call_.length), call_);
+        // so `s` must be 0x60. `abi.encode(bootstrap, s, length, callData)` is wrong here, and wrong in a
+        // way that looks like it works: standard ABI encoding reserves four head words and puts the
+        // dynamic offset at word 3, which lands `length` at word 2 and the payload at word 3 *of the
+        // encoding*, i.e. one word later than the assembly reads. The bootstrap then receives a
+        // selector of `0x0000...0080` and an empty read, falls through its dispatcher, and the account
+        // reports `MissingFallbackHandler(0x00000000)` -- an error about the account's fallback that has
+        // nothing to do with any fallback. Packed explicitly instead.
+        return abi.encodePacked(
+            bytes32(uint256(uint160(BOOTSTRAP))), // word 0: bootstrap
+            bytes32(uint256(0x60)), // word 1: s
+            bytes32(uint256(call_.length)), // word 2: length
+            call_ // word 3: the bootstrap call
+        );
     }
 
     /**
@@ -195,6 +210,12 @@ contract NexusAccountFactoryLiveTest is Test {
         p.paramData = data;
         p.constraints = new Constraint[](0);
         return p;
+    }
+
+    uint256 private counter;
+
+    function _nonce() private returns (uint256) {
+        return ++counter;
     }
 
     function _createQuietly() private {
