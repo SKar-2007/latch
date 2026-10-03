@@ -601,3 +601,4 @@ Selectors used in this round, computed locally and confirmed against the live co
 `isValidSignature(bytes32,bytes)` hashing to `0x1626ba7e` matches `ERC1271_MAGICVALUE` in Nexus's
 `Constants.sol`, which is an independent check that the selector computation was correct.
 | **V-25** | Reading Uniswap liquidity from `QuoterGuard` on-chain | `VERIFIED IMPOSSIBLE** | Uniswap's Quoter emits an event via `pool.swap`, so `STATICCALL` can never reach it. See below |
+| **V-27** | V-24 attributed to a codeless caller | `CAUSE REVISED** | The batch must be routed through the account's fallback handler. See below |
