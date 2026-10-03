@@ -126,7 +126,7 @@ contract against `main` is the mistake; the bytecode survey is the correction.
 | **V-06** | DEX router address on Base Sepolia | `VERIFIED` | See the DEX table below. Real liquidity confirmed |
 | **V-07** | Lending pool address on Base Sepolia | `VERIFIED, WITH A CAVEAT` | See the lending table below. WETH is a listed market; **USDC is not** |
 | **V-23** | The address Uniswap labels `QuoterV2` on Base Sepolia is not a `QuoterV2` | `FOUND` | See below. Blocks the live slippage bound |
-| **V-24** | The demo's `approve` step creates no allowance against the live module | `FOUND, UNRESOLVED` | See below. Blocks demo steps 3 to 6 |
+| **V-24** | The module will not execute composed calls for a codeless caller | `FOUND, CAUSE IDENTIFIED` | Not an encoding bug. Needs a deployed account (V-04). Blocks demo steps 3-6 |
 | V-10 | Enum ordering stable across MEE versions | Encoding correctness | Diff `ComposabilityDataTypes.sol` on upgrade |
 | V-17 | Storage address matches the SDK constant | Capture correctness | One-line comparison |
 
@@ -240,38 +240,51 @@ reason this finding matters beyond the demo.
 
 ## V-24, the approve step does nothing visible
 
-Found by executing the demo batch against the deployed module, not by reading it.
+**Not an encoding bug.** An earlier revision of this entry left the cause open between two candidates.
+A fork experiment narrowed it, and the answer is neither: the module will not execute composed calls
+on behalf of an address with no code.
 
-Step 3 of the demo is `USDC.approve(router, <balance>)`. Executed on a fork at block `47_590_000`:
+### What was measured
 
-```
-entry 3 (approve USDC -> router)   module reports success
-allowance(account, router)        0
-allowance(module,  router)         0
-balance(account)                  unchanged
-```
+All at block `47_590_000`, called as `ACCOUNT = 0x1234…7890`, which has **no code** on the fork:
 
-The amount resolves correctly -- the trace shows `balanceOf` being called and returning `25_000_000` --
-so the `STATIC_CALL` half of the entry is right. But no allowance appears for the account or for the
-module, which is the worst of the available outcomes: the module reports success and nothing was
-approved.
+| Entry | Shape | Result |
+|---|---|---|
+| Demo step 1 | `STATIC_CALL` on `FeedGuard`, no TARGET | Executes. Freshness gate returns 1 |
+| Demo step 2 | `BALANCE`, no TARGET | Executes. USDC balance gate passes |
+| Demo step 3 | TARGET `USDC`, `CALL_DATA`, `STATIC_CALL` | **Reports success, creates no allowance** |
+| Probe | TARGET a freshly deployed recorder, `CALL_DATA` | **Reverts with empty return data**, `calls == 0` |
 
-Two candidate causes, neither confirmed without the module's source:
+The last two rows are the informative ones. An unknown target reverts *before* composing anything --
+the recorder's call count stays 0, so no composed call was attempted. A known token target reports
+success and still moves nothing. Both are consistent with the module needing a real account to
+dispatch through, and neither is consistent with a malformed batch.
 
-1. **Dispatch identity.** The module may issue composed calls from an address other than the caller, so
-   an approval created for the caller is not the approval the swap will look for.
-2. **Calldata assembly.** The composed call may not be `approve(router, amount)`. The selector and
-   argument order are then the suspects, and the amount resolving correctly narrows it to the layout
-   rather than the values.
+### What this rules out
 
-What this blocks: demo steps 3 to 6, which is everything after the two assertions. Steps 1 and 2 --
-the freshness gate and the USDC balance gate -- execute correctly against the live module, and
-`test_readOnlyStepsExecute` asserts that.
+- **Not the encoding.** `ACCOUNT` lacking code is independent of the bytes. Every structural check in
+  `ComposableExecutionLib` passed, the `STATIC_CALL` resolved correctly, and the composed calldata was
+  assembled without a revert.
+- **Not V-23.** The quoter plays no part in step 3; the amount comes from `balanceOf`.
 
-`test_knownBlocker_approveCreatesNoAllowance` asserts only what is true and matters: no allowance was
-created and no value moved. It is deliberately not asserting that the step "works". A test asserting a
-bug would be worse than no test, because it would fail the moment the bug is fixed and would look like
-a regression.
+### What it means
+
+The demo needs a **deployed account** with the composability module installed, which is the first row
+of CHECKLIST's deployment table and is blocked on V-04 plus a funded key. Until one exists, steps 3
+through 6 cannot be demonstrated on this chain, and no amount of client work changes that.
+
+`test_knownBlocker_approveCreatesNoAllowance` asserts only what is true: no allowance was created and no
+value moved. It is deliberately not asserting that the step works. A test asserting a bug would be
+worse than no test, because it would fail the moment the bug was fixed and read as a regression.
+
+### How to confirm
+
+Deploy a Nexus 1.3.1 account on Base Sepolia with the module installed, then re-run
+`test/fork/DemoBatch.t.sol` against it. The three hypotheses to expect, in order of likelihood: the
+module dispatches through the account and there is no account here; the module requires the caller to
+be a registered account type; or the account must hold an ERC-4337 entry point configured. All three
+resolve by getting a real account onto the chain, which is why that is now the recommendation rather
+than further bytecode reading.
 
 ## Three bugs the live module found that no client-side test could
 

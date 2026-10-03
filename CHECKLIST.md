@@ -33,7 +33,7 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | V-06, DEX addresses | **Closed.** SwapRouter02 and factory cross-consistent, WETH/USDC pools have liquidity at all three fee tiers |
 | V-07, lending addresses | **Closed.** Aave V3 Pool live, provider agrees. WETH is a market; **USDC is not**, so the supply step must use WETH |
 | V-23, Base Sepolia "QuoterV2" | **Open.** The documented address does not implement `IQuoterV2`, so `QuoterGuard` cannot read live liquidity yet |
-| V-24, the demo `approve` step | **Open, unresolved.** Creates no allowance against the live module. Blocks demo steps 3-6 |
+| V-24, demo `approve` step | **Cause identified.** The module will not execute composed calls for a codeless caller. Not an encoding bug. Needs a deployed account, so it resolves with V-04 |
 | V-01, MEE deployment version | **Closed.** `2.2.x` deployment against a Nexus `1.3.1` account |
 
 ### Three design decisions the tests forced
@@ -144,7 +144,7 @@ in [verification-log.md](docs/appendix/verification-log.md).
 | `MockOracle` deployed with UI-driven setters | not started | — |
 | `FeedGuard` deployed and `isFresh` returning a single word | not started | — |
 | `QuoterGuard` deployed | not started | V-06 |
-| Happy-path batch, six entries, one signature | **Built and encoded.** Steps 1-2 execute live; steps 3-6 blocked by V-24 | — |
+| Happy-path batch, six entries, one signature | **Built and encoded.** Steps 1-2 execute live; steps 3-6 need a deployed account (V-24) | — |
 | Deterministic revert demo, oracle moved out of band | **Done.** The freshness-gate variant passes on fork | — |
 | ERC-7702 delegation demonstrated | not started | V-04 |
 | MEEScan or Basescan link captured for the recording | not started | — |
