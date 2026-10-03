@@ -1,0 +1,100 @@
+/*
+ * Seat F styles.
+ *
+ * Rule 1 of the brief: no raw colours, radii, shadows or font sizes. Everything resolves to a custom
+ * property from `src/styles/tokens.css`. The only literal here is a max-width on a code block, which
+ * is layout rather than a design decision.
+ */
+
+.f-panel {
+  display: block;
+}
+
+.f-sign,
+.f-exec,
+.f-revert,
+.f-digest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.f-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/*
+ * The two-signature list. Numbered rather than bulleted because the order is the point: the intent
+ * is described first, and the UserOp -- the one that actually authorises -- is read second.
+ */
+.f-authority {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-inline-start: var(--s-5);
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+}
+
+.f-authority > li::marker {
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+  color: var(--c-ink-muted);
+}
+
+.f-blockers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding-inline-start: var(--s-4);
+}
+
+.f-digest {
+  padding: var(--s-3);
+  background: var(--c-surface-sunken);
+  border: var(--bw-thin) solid var(--c-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.f-digest > code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--c-ink-muted);
+}
+
+.f-hash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.f-note {
+  margin: 0;
+  color: var(--c-ink-muted);
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+}
+
+.f-detail {
+  font-size: var(--t-sm);
+  color: var(--c-ink-muted);
+}
+
+.f-detail > summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.f-detail > summary:focus-visible {
+  outline: var(--bw) solid var(--c-acid);
+  outline-offset: var(--s-1);
+}
