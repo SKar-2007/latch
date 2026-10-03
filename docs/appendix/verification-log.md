@@ -63,7 +63,7 @@ Event topic: `0xb5282692b8c578af7fb880895d599035496b5e64d1f14bf428a1ed3bc406f662
 |---|---|---|---|
 | **V-14** | Does the account honour `EXECTYPE_TRY`? | **`VERIFIED YES`** | All four Nexus builds on Base Sepolia contain the `TryExecuteUnsuccessful` and `TryDelegateCallUnsuccessful` topics **and** the `executeFromExecutor` selector. `FailSafeExecutor`'s mechanism is present |
 | **V-16** | Which singleton is the ERC-8211 Nexus? | **`VERIFIED`** | `0x0000000020fe2F30453074aD916eDeB653eC7E9D`, `accountId()` = **`biconomy.nexus.1.3.1`** |
-| **V-04** | Nexus singleton for the demo | **`VERIFIED`** | Same address. This is the EIP-7702 delegation target |
+| **V-04** | Obtaining a Nexus account for the demo | **`PARTIAL`** | EIP-7702 delegation to the verified account works and is not sufficient. The account rejects composable calls with `InvalidModule(address(0))`. See below |
 | **V-18** | Does the account need the composability module installed? | **`VERIFIED NO`** | The 1.3.1 account contains the `executeComposable` selector itself. It is the spec's native-inheritance shape |
 
 ### What the survey found
@@ -237,6 +237,45 @@ demo can compute a live slippage bound on this chain. Options, in order of prefe
 
 Option 2 is the one that preserves the property the project exists to demonstrate, and it is the
 reason this finding matters beyond the demo.
+
+## V-04, delegation reaches the account but cannot make it composable
+
+V-04 was recorded as VERIFIED on the strength of one line: the singleton "is the EIP-7702 delegation
+target". Nothing had demonstrated that delegation reaches it. It does -- and that turned out to be the
+easy half.
+
+**Delegation works.** On a Base Sepolia fork, an EOA signs an authorization to
+`0x0000000020fe2F30453074aD916eDeB653eC7E9D` and then answers `accountId()` as
+`biconomy.nexus.1.3.1`, the build V-04 verified. The EOA is no longer codeless: its code is a 23-byte
+`0xef0100 || address` designator. That designator is not a copy of the runtime, which is why an
+earlier reading of `code.length` as "delegation failed" was wrong.
+
+**Delegation is not sufficient.** Two distinct refusals, both named rather than inferred:
+
+| Call | Result | Selector |
+|---|---|---|
+| delegated account, `executeComposable([])` | reverts | `0xac52ccbe` `AccountAccessUnauthorized()` |
+| `MODULE.executeComposableCall(approveStep)` | reverts, 36 bytes | `0xb927fe5e` `InvalidModule(address)` |
+
+The second is the decisive one. `InvalidModule(address)` lives in the **account**, not the module
+(verified by selector presence in each bytecode), and its argument is `address(0)`. The composability
+module is not installed on `0x…7E9D`. Delegating to it does not install it, and that account is not
+ours, so we cannot install it ourselves.
+
+So V-04 splits in two. Delegation answers *how the demo's account will execute* — one signed
+authorization, no separate deployment. It does not answer *how we obtain an account with the module
+installed*. That needs the Nexus factory or bootstrap on Base Sepolia, which Biconomy publishes for
+mainnet and which has not yet been located for chain 84532.
+
+Measured by `test/fork/NexusDelegationProbe.t.sol` and the approve-step probe in
+`test/fork/DemoBatch.t.sol`. Both report rather than assert where the answer is still open, so neither
+can fail while V-04 remains partial.
+
+One methodological note, since this file has been wrong in the same way more than once. An earlier
+probe used a codeless address as its control and read the resulting *success* as "the codeless path is
+fine". A call to an address with no code cannot fail. It measured nothing, and its name asserted the
+opposite of what it checked. `test_codelessCallSucceedsTriviallyAndMeansNothing` keeps the mistake
+visible.
 
 ## V-25, Uniswap's Quoter cannot be reached from a view function
 

@@ -42,6 +42,7 @@ contract DemoBatchTest is Test {
     address constant FEED = 0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1; // K-02
 
     /// @dev Matches `ACCOUNT` in `client/scripts/emitDemoFixture.ts`.
+    address constant NEXUS_1_3_1 = 0x0000000020fe2F30453074aD916eDeB653eC7E9D;
     address constant ACCOUNT = 0x1234567890123456789012345678901234567890;
     /// @dev Matches `FEED_GUARD` there too.
     address constant FEED_GUARD = 0x00000000000000000000000000000000000000AA;
@@ -159,6 +160,58 @@ contract DemoBatchTest is Test {
      *      moves and no allowance is left standing, so the batch is not silently unsafe. When the cause
      *      is identified, delete this and restore the six-step assertions.
      */
+    /**
+     * @dev PROBE for V-24. Reports, never asserts, so it cannot fail the suite.
+     *
+     *      `test_knownBlocker_approveCreatesNoAllowance` runs the approve step from the `EngineAccount`
+     *      mock and finds no allowance. Two explanations fit equally well and this separates them:
+     *
+     *        (a) the module dispatches composed calls from an address other than the caller, or
+     *        (b) the step never dispatched at all because the caller was not an account the module
+     *            recognises -- the "codeless caller" cause V-24 names.
+     *
+     *      So: same step, same batch, caller differs only in carrying an EIP-7702 delegation to the
+     *      Nexus 1.3.1 account. If an allowance appears, the module was refusing the mock all along and
+     *      V-04's answer is delegation rather than a deployed account. If nothing appears either way,
+     *      the cause is (a) and delegation is not sufficient.
+     *
+     *      The caller is funded with USDC directly, because the approve is the step under test and
+     *      step 2's balance gate is not the thing being varied.
+     */
+    function test_probe_delegatedCallerReachesTheAccountWhichRejectsTheModule() public {
+        address caller = vm.addr(0xA11CE);
+        deal(USDC, caller, AMOUNT_IN);
+
+        ComposableExecution[] memory one = new ComposableExecution[](1);
+        one[0] = batch[2];
+
+        vm.signAndAttachDelegation(NEXUS_1_3_1, 0xA11CE);
+        assertEq(caller.code.length, 23, "the caller now carries a delegation designator");
+
+        vm.prank(caller);
+        (bool ok, bytes memory ret) =
+            MODULE.call(abi.encodeWithSelector(IComposableExecutionModule.executeComposableCall.selector, one));
+
+        emit log_named_string("module reported", ok ? "success" : "revert");
+        emit log_named_uint("returndata length", ret.length);
+        // `InvalidModule(address)` comes from the Nexus account, not the module, and its argument is
+        // address(0): the composability module is not installed on this account. See V-04.
+        if (!ok && ret.length >= 36) {
+            bytes4 err = bytes4(ret);
+            address arg = address(uint160(_lowBytes(ret, 4, 4)));
+            emit log_named_bytes("error selector", _first4(ret));
+            emit log_named_address("error argument", arg);
+        }
+        emit log_named_uint("allowance(caller, router)", IERC20(USDC).allowance(caller, SWAP_ROUTER()));
+        emit log_named_uint("allowance(module, router)", IERC20(USDC).allowance(MODULE, SWAP_ROUTER()));
+        emit log_named_uint("allowance(ACCOUNT, router)", IERC20(USDC).allowance(ACCOUNT, SWAP_ROUTER()));
+        emit log_named_uint("caller USDC balance", IERC20(USDC).balanceOf(caller));
+        emit log_named_string(
+            "delegation changed the outcome",
+            IERC20(USDC).allowance(caller, SWAP_ROUTER()) > 0 ? "YES -- V-04 answerable by delegation" : "no"
+        );
+    }
+
     function test_knownBlocker_approveCreatesNoAllowance() public {
         ComposableExecution[] memory one = new ComposableExecution[](1);
         one[0] = batch[2];
@@ -375,6 +428,28 @@ contract DemoBatchTest is Test {
             word6 |= bytes32(uint256(uint8(ret[32 * 6 + i])) << (8 * (31 - i)));
         }
         return address(uint160(uint256(word6)));
+    }
+
+    /**
+     * @dev Read `n` bytes at `from` as the *least significant* bytes of a uint160.
+     *
+     *      Revert data for an error taking one address is 36 bytes: a 4-byte selector then a 32-byte
+     *      word whose top 28 bytes are zero padding. Those padding bytes are absent from the actual
+     *      returndata, so the address occupies only the final 4 bytes. Reading a full word here reads
+     *      past the end of the array.
+     */
+    function _lowBytes(bytes memory b, uint256 from, uint256 n) private pure returns (uint160 out) {
+        require(from + n <= b.length, "read past end of returndata");
+        for (uint256 i; i < n; ++i) {
+            out |= uint160(uint8(b[from + i])) << (8 * i);
+        }
+    }
+
+    function _first4(bytes memory b) private pure returns (bytes memory out) {
+        out = new bytes(4);
+        for (uint256 i; i < 4; ++i) {
+            out[i] = b[i];
+        }
     }
 }
 
