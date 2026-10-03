@@ -28,6 +28,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_ROOT = path.resolve(HERE, "..");
 const SRC = path.join(WEB_ROOT, "src");
 const TOKENS = path.join(SRC, "styles", "tokens.css");
+const UI_CSS = path.join(SRC, "components", "ui", "ui.css");
 const DECODER = path.join(SRC, "features", "decoder");
 
 const SCANNED = new Set([".ts", ".tsx", ".css"]);
@@ -137,6 +138,103 @@ describe("D4: the decoder never claims an outcome", () => {
             .slice(Math.max(0, (match.index ?? 0) - 30), (match.index ?? 0) + 30)
             .split("\n")
             .join(" ")}\``,
+        );
+      }
+    }
+    expect(report(offenders)).toBe("");
+  });
+});
+
+/* ------------------------------------------------------------------ contrast */
+
+/** First `--c-<name>: <hex>` wins, so a media-query override cannot silently change a rule. */
+function colourTokens(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const match of stripComments(readFileSync(TOKENS, "utf8")).matchAll(
+    /(--c-[\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\b/g,
+  )) {
+    const [, name, value] = match;
+    if (name !== undefined && value !== undefined && !(name in out)) out[name] = value;
+  }
+  return out;
+}
+
+/** Declarations of the first rule whose selector list is exactly the one asked for. */
+function rule(css: string, selector: string): Record<string, string> {
+  const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(?:^|,|\\s)${esc}\\s*\\{([^}]*)\\}`, "m").exec(css);
+  if (match === null) return {};
+  const out: Record<string, string> = {};
+  for (const decl of (match[1] ?? "").split(";")) {
+    const pair = /^([\w-]+)\s*:\s*(.+)$/.exec(decl.trim());
+    if (pair !== null && pair[1] !== undefined && pair[2] !== undefined) out[pair[1]] = pair[2];
+  }
+  return out;
+}
+
+const resolveColour = (value: string | undefined, tokens: Record<string, string>): string | null => {
+  if (value === undefined) return null;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{3,8}$/.test(trimmed)) return trimmed;
+  const ref = /var\((--c-[\w-]+)\)/.exec(trimmed);
+  return ref?.[1] !== undefined ? (tokens[ref[1]] ?? null) : null;
+};
+
+/** WCAG 2.1 relative luminance, then the contrast ratio between two hex colours. */
+function contrast(a: string, b: string): number {
+  const channel = (raw: number): number => {
+    const c = raw / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const hex = (s: string): number[] => {
+    const clean = s.replace("#", "");
+    const full = clean.length === 3 ? [...clean].map((c) => c + c).join("") : clean;
+    return [0, 2, 4].map((i) => Number.parseInt(full.slice(i, i + 2), 16));
+  };
+  const lum = (s: string): number => {
+    const [r, g, bl] = hex(s);
+    return 0.2126 * channel(r ?? 0) + 0.7152 * channel(g ?? 0) + 0.0722 * channel(bl ?? 0);
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+}
+
+describe("a chip says what it is where it is used", () => {
+  /**
+   * `.ui-chip` is the one primitive that renders inside `.ui-panel__header`, whose background is
+   * `--c-surface-inverted` and whose colour is `--c-ink-inverted`. A tone that sets only a
+   * background inherits that white, so white-on-white ships as an invisible status: SIMULATION's
+   * chip rendered as a blank box and EXECUTION's "disconnected" sat at 1.05:1. Resolving the
+   * cascade here — base rule, then tone, then the header the chip inherits from — is what makes
+   * that failure visible without a browser.
+   */
+  const tokens = colourTokens();
+  const css = stripComments(readFileSync(UI_CSS, "utf8"));
+  const headerColour = resolveColour(rule(css, ".ui-panel__header").color, tokens);
+  const base = rule(css, ".ui-chip");
+  const tones = ["default", ...[...css.matchAll(/\.ui-chip--([a-z]+)\b/g)].map((m) => m[1] ?? "")];
+
+  it("parses a base rule, a header to inherit from, and every tone (not vacuous)", () => {
+    expect(Object.keys(base).length).toBeGreaterThan(0);
+    expect(headerColour).not.toBeNull();
+    expect(new Set(tones).size).toBeGreaterThanOrEqual(5);
+    expect(tones.every((tone) => tone === "default" || css.includes(`.ui-chip--${tone}`))).toBe(true);
+  });
+
+  it("keeps every tone at 4.5:1 or better against the background it actually gets", () => {
+    const offenders: string[] = [];
+    for (const tone of tones) {
+      const decls = tone === "default" ? base : rule(css, `.ui-chip--${tone}`);
+      const background = resolveColour(decls.background ?? base.background, tokens);
+      const colour = resolveColour(decls.color ?? base.color, tokens) ?? headerColour;
+      if (background === null || colour === null) {
+        offenders.push(`.ui-chip--${tone}: could not resolve colour or background`);
+        continue;
+      }
+      const ratio = contrast(colour, background);
+      if (ratio < 4.5) {
+        offenders.push(
+          `.ui-chip--${tone}: ${colour} on ${background} = ${ratio.toFixed(2)}:1 (needs 4.5:1)`,
         );
       }
     }

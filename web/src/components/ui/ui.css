@@ -188,6 +188,10 @@
   border: var(--bw-thin) solid var(--c-ink);
   border-radius: var(--radius);
   background: var(--c-surface);
+  /* The chip is the one primitive rendered inside .ui-panel__header, where the inherited colour is
+     --c-ink-inverted. Every tone below sets a light background of its own, so the colour must be
+     set here rather than inherited: white-on-white shipped as an invisible status chip. */
+  color: var(--c-ink);
   font-family: var(--font-mono);
   font-size: var(--t-xs);
   font-weight: var(--fw-medium);
