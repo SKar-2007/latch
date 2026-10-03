@@ -113,7 +113,7 @@ It sits on a latch-red field inside a black keyline, with a cream letterform.
 | Property | Value |
 |---|---|
 | Canvas | 64 x 64 |
-| Field | `#FF4D2E`, `--c-latch`, full bleed |
+| Field | `#D43A1C`, `--c-latch`, full bleed |
 | Keyline | `#0B0B0B`, `--c-ink`, 6 units, inset 4 |
 | Letterform | `#FFFDF7`, cream, `--c-surface`, stroke 8, square caps, mitred joins |
 | Glyph path | `M34 16 H20 V48 H48` — vertical stroke, short top arm, long foot |

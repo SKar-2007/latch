@@ -241,3 +241,99 @@ describe("a chip says what it is where it is used", () => {
     expect(report(offenders)).toBe("");
   });
 });
+
+/* --------------------------------------------------- contrast, every other tone */
+
+type CssRule = { readonly selector: string; readonly decls: Record<string, string> };
+
+/** Every rule in a comment-stripped stylesheet, one entry per selector in a selector list. */
+function allRules(css: string): CssRule[] {
+  const out: CssRule[] = [];
+  for (const match of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const decls: Record<string, string> = {};
+    for (const decl of (match[2] ?? "").split(";")) {
+      const pair = /^([\w-]+)\s*:\s*(.+)$/.exec(decl.trim());
+      if (pair?.[1] !== undefined && pair[2] !== undefined) decls[pair[1]] = pair[2];
+    }
+    for (const selector of (match[1] ?? "").split(",")) {
+      const trimmed = selector.trim();
+      if (trimmed !== "") out.push({ selector: trimmed, decls });
+    }
+  }
+  return out;
+}
+
+describe("every tone is readable where it is used", () => {
+  const tokens = colourTokens();
+  const cssFiles = FILES.filter((file) => file.endsWith(".css"));
+
+  const rulesBySelector = new Map<string, CssRule>();
+  for (const file of cssFiles) {
+    for (const entry of allRules(stripComments(readFileSync(file, "utf8")))) {
+      if (!rulesBySelector.has(entry.selector)) rulesBySelector.set(entry.selector, entry);
+    }
+  }
+
+  /**
+   * The chip test above resolves one cascade by hand because it was the failure that shipped. This
+   * is the same check over every stylesheet: any rule that states both a colour and a background is
+   * evaluated as written, which covers buttons, alerts, eyebrows, gate badges, the decoder's own
+   * chips and the header mark without naming them one by one. Rules that leave either half to the
+   * cascade are the second test's job — they are not silently skipped as "can't tell".
+   */
+  it("keeps every rule that states its own pair at 4.5:1 or better", () => {
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const file of cssFiles) {
+      for (const entry of allRules(stripComments(readFileSync(file, "utf8")))) {
+        const colour = resolveColour(entry.decls.color, tokens);
+        const background = resolveColour(entry.decls.background, tokens);
+        if (colour === null || background === null) continue;
+        checked += 1;
+        const ratio = contrast(colour, background);
+        if (ratio < 4.5) {
+          offenders.push(
+            `${relative(file)} ${entry.selector}: ${colour} on ${background} = ${ratio.toFixed(2)}:1 (needs 4.5:1)`,
+          );
+        }
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(20);
+    expect(report(offenders)).toBe("");
+  });
+
+  /**
+   * Text that takes its background from an ancestor cannot be checked from its own rule, so each
+   * ancestor is named here rather than guessed. `.app-step__num` is the one row allowed below
+   * 4.5:1: it is a 4rem display numeral, and WCAG large text needs 3:1. Eyebrows are checked
+   * against both surfaces they are rendered on, because they carry only a colour.
+   */
+  it("keeps inherited-background text above its threshold", () => {
+    const CONTEXTS: readonly (readonly [string, string, number, string])[] = [
+      [".ui-eyebrow", "--c-paper", 4.5, "section label on the page"],
+      [".ui-eyebrow", "--c-surface", 4.5, "section label inside a panel"],
+      [".app-step__num", "--c-paper", 3, "64px display numeral on the page"],
+      [".app-notice .ui-mono", "--c-block-wash", 4.5, "notice text on the notice's own band"],
+      [".dec-gate__reason", "--c-surface", 4.5, "decoder reason on the panel body"],
+      [".dec-gate__ref", "--c-surface", 4.5, "decoder reference on the panel body"],
+    ];
+    const offenders: string[] = [];
+    for (const [selector, backgroundToken, minimum, why] of CONTEXTS) {
+      const entry = rulesBySelector.get(selector);
+      const colour = entry === undefined ? null : resolveColour(entry.decls.color, tokens);
+      const background = tokens[backgroundToken];
+      if (colour === null || background === undefined) {
+        offenders.push(`${selector}: could not resolve its colour or \`${backgroundToken}\``);
+        continue;
+      }
+      const ratio = contrast(colour, background);
+      if (ratio < minimum) {
+        offenders.push(
+          `${selector}: ${colour} on ${background} (${why}) = ${ratio.toFixed(2)}:1 (needs ${minimum}:1)`,
+        );
+      }
+    }
+    expect(CONTEXTS.length).toBeGreaterThanOrEqual(6);
+    expect(report(offenders)).toBe("");
+  });
+});

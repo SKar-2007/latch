@@ -269,7 +269,7 @@
 
 .ui-gate--not-checked {
   background: var(--c-unchecked-wash);
-  color: var(--c-ink-muted);
+  color: var(--c-ink-soft);
   border-style: dashed;
 }
 

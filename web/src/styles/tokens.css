@@ -31,17 +31,22 @@
   --c-ink-muted: #6e695e;
   --c-ink-inverted: #fffdf7;
 
-  /* Brand. Acid is the primary action; latch red is the brand mark and destructive emphasis. */
+  /* Brand. Acid is the primary action; latch red is the brand mark and destructive emphasis.
+     Latch carries white text — eyebrow, panel header, danger button, the mark itself — so it is
+     held at 4.5:1 against --c-ink-inverted rather than at the brighter tint the deck drew. */
   --c-acid: #e9ff3d;
   --c-acid-press: #cfe620;
-  --c-latch: #ff4d2e;
-  --c-latch-press: #e5341b;
+  --c-latch: #d43a1c;
+  --c-latch-press: #b83316;
   --c-sky: #38bdf8; /* continuity with the source deck's accent. Eyebrows and highlights only */
 
   /* Signal. These three map one to one onto a gate verdict. `--c-unchecked` is deliberately grey:
-     a constraint that was never evaluated must never look like one that passed. */
-  --c-pass: #008f4c;
-  --c-block: #e5341b;
+     a constraint that was never evaluated must never look like one that passed. Pass and block are
+     set as text over their own wash at 12px uppercase, so both sit darker than the tint the deck
+     drew. Latch and block end up close in hue; they are told apart by application — a solid fill
+     behind white type, a verdict word on a pale wash — never by hue alone. */
+  --c-pass: #00743e;
+  --c-block: #c42a10;
   --c-unchecked: #8a8578;
 
   /* Derivatives. Tints are for wash backgrounds; never use them for text on paper. */

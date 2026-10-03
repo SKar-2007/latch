@@ -346,6 +346,7 @@ illegal moves, and the ten honesty rules from
 | Chain clients | The write client has no rotating transport and never broadcasts; the two broadcast sites are the injected wallet |
 | Pinned addresses | No address literal exists in `src/` outside `core/addresses.ts` |
 | Intent signing | The EIP-712 domain binds this app, this chain and this account; a refusal produces a sentence, not a code |
+| Design system | No raw colour outside `tokens.css`, no radius but 0, no shadow but a token; every tone is 4.5:1 or better against the background it actually inherits, from an explicit list for the ones an ancestor supplies |
 
 Four gates run before a change leaves `web/`: `npm run typecheck`, `npm test`, `npm run build`, and
 `cd ../client && npm test`. The last one is a guard: the frontend must not touch `client/`.

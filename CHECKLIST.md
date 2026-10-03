@@ -28,7 +28,7 @@ Tracks document status, phase gates, and readiness. All files ship as `draft`. P
 | Fork fuzzing against the live engine | **Done.** `test/fork/EncodingFuzz.t.sol`, 18 tests at block `47_590_000` |
 | Layer D live smoke tests | **Done.** `test/smoke/LiveSmoke.t.sol`, 13 tests on Base Sepolia |
 | Client builder and decoder | **Done.** `client/`, 80 tests, TypeScript strict |
-| Web client | **Done.** `web/`, 111 tests, `tsc --noEmit` clean, production build |
+| Web client | **Done.** `web/`, 115 tests, `tsc --noEmit` clean, production build |
 | ABI parity with Solidity | **Done.** Committed fixture; three implementations agree byte for byte |
 | `MAX_ENTRIES` and "decoder renders every constraint" | **Done.** The two `docs/09` invariants that had no code behind them |
 | V-06, DEX addresses | **Closed.** SwapRouter02 and factory cross-consistent, WETH/USDC pools have liquidity at all three fee tiers |
